@@ -1,6 +1,6 @@
 import { useState, useEffect, useReducer, useMemo, useCallback, createContext, useContext, useRef } from 'react'
 
-// ─── LANGUAGE DATA ────────────────────────────────────────────────────────────
+// --- LANGUAGE DATA ------------------------------------------------------------
 const LANGUAGES = {
   en: {
     appName: 'VegMacro', tagline: 'Indian vegetarian nutrition tracker',
@@ -181,7 +181,7 @@ const LANG_OPTIONS = [
   { code: 'kn', label: 'ಕನ್ನಡ' }, { code: 'pa', label: 'ਪੰਜਾਬੀ' },
 ]
 
-// ─── FOOD DATABASE ────────────────────────────────────────────────────────────
+// --- FOOD DATABASE ------------------------------------------------------------
 const LOCAL_FOODS = [
   { id:'paneer', name:'Paneer', category:'protein', cuisine:'indian', portion:'100g', calories:265, protein:18, carbs:1, fat:20, fiber:0, gi:'Low' },
   { id:'masoor_dal', name:'Masoor dal (cooked)', category:'protein', cuisine:'indian', portion:'1 katori (150g)', calories:138, protein:10, carbs:24, fat:1, fiber:8, gi:'Low' },
@@ -226,7 +226,7 @@ const HEALTH_TIPS = [
   "Eating a small katori of curd with meals slows carb absorption and adds gut-friendly probiotics.",
 ]
 
-// ─── TDEE / MACRO CALCULATOR ─────────────────────────────────────────────────
+// --- TDEE / MACRO CALCULATOR -------------------------------------------------
 const ACTIVITY_MULTIPLIERS = {
   sedentary: 1.2,
   lightlyActive: 1.375,
@@ -279,7 +279,7 @@ const suggestMacros = (tdee, fitnessGoal, weightKg) => {
   return { calories, protein, carbs, sugar, fat, fiber }
 }
 
-// ─── STATE ────────────────────────────────────────────────────────────────────
+// --- STATE --------------------------------------------------------------------
 const initialState = {
   log: [], journal: {}, goals: null, waterGlasses: 0, dayNote: '', recipes: [],
 }
@@ -301,7 +301,7 @@ function appReducer(state, action) {
 const AppContext = createContext(null)
 const useApp = () => useContext(AppContext)
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
+// --- HELPERS -----------------------------------------------------------------
 const todayKey = () => new Date().toISOString().slice(0, 10)
 
 const giColor = (gi) => {
@@ -394,7 +394,7 @@ const getAISuggestions = (totals, goals) => {
   return suggestions.slice(0, 4)
 }
 
-// ─── USDA API ─────────────────────────────────────────────────────────────────
+// --- USDA API -----------------------------------------------------------------
 const USDA_KEY = (typeof process !== 'undefined' && process.env?.VITE_USDA_KEY) || 'DEMO_KEY'
 const searchUSDA = async (query, signal) => {
   const res = await fetch(
@@ -418,7 +418,7 @@ const searchUSDA = async (query, signal) => {
   })
 }
 
-// ─── AUTH SCREEN ──────────────────────────────────────────────────────────────
+// --- AUTH SCREEN --------------------------------------------------------------
 function AuthScreen({ lang, onAuth }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
   const [isSignUp, setIsSignUp] = useState(true)
@@ -625,7 +625,7 @@ function AuthScreen({ lang, onAuth }) {
   )
 }
 
-// ─── LANGUAGE PICKER ──────────────────────────────────────────────────────────
+// --- LANGUAGE PICKER ----------------------------------------------------------
 function LanguagePicker({ onSelect }) {
   return (
     <div style={S.setupWrap}>
@@ -646,7 +646,7 @@ function LanguagePicker({ onSelect }) {
   )
 }
 
-// ─── BODY PROFILE STEP ────────────────────────────────────────────────────────
+// --- BODY PROFILE STEP --------------------------------------------------------
 function BodyProfileStep({ lang, onComplete, onBack }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
   const [age, setAge] = useState('')
@@ -860,7 +860,7 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
     </div>
   )
 }
-// ─── GOALS REVIEW STEP ────────────────────────────────────────────────────────
+// --- GOALS REVIEW STEP --------------------------------------------------------
 function GoalsReviewStep({ lang, suggestedGoals, bodyData, onComplete, onBack }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
   const [goals, setGoals] = useState(suggestedGoals)
@@ -922,7 +922,7 @@ function GoalsReviewStep({ lang, suggestedGoals, bodyData, onComplete, onBack })
   )
 }
 
-// ─── SETUP (name only now) ────────────────────────────────────────────────────
+// --- SETUP (name only now) ----------------------------------------------------
 function NameStep({ lang, onComplete, onBack }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
   const [name, setName] = useState('')
@@ -947,7 +947,7 @@ function NameStep({ lang, onComplete, onBack }) {
   )
 }
 
-// ─── ADD FOOD MODAL ───────────────────────────────────────────────────────────
+// --- ADD FOOD MODAL -----------------------------------------------------------
 function AddFoodModal({ food, onConfirm, onCancel, lang }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
   const [qty, setQty] = useState(1)
@@ -1013,7 +1013,7 @@ function AddFoodModal({ food, onConfirm, onCancel, lang }) {
   )
 }
 
-// ─── BARCODE SCANNER ─────────────────────────────────────────────────────────
+// --- BARCODE SCANNER ---------------------------------------------------------
 // Uses ZXing-js (loaded from CDN) for broad browser/camera support.
 // Nutrition from Open Food Facts — reads per-serving fields with per-100g fallback.
 function BarcodeScanner({ lang, onFound, onClose }) {
@@ -1025,7 +1025,7 @@ function BarcodeScanner({ lang, onFound, onClose }) {
   const [manualBarcode, setManualBarcode] = useState('')
   const [zxingReady, setZxingReady]   = useState(false)
 
-  // ── Load ZXing from CDN ──────────────────────────────────────────────────
+  // -- Load ZXing from CDN --------------------------------------------------
   useEffect(() => {
     if (window.ZXing) { setZxingReady(true); return }
     const script = document.createElement('script')
@@ -1036,7 +1036,7 @@ function BarcodeScanner({ lang, onFound, onClose }) {
     return () => { try { document.head.removeChild(script) } catch (_e) {} }
   }, [])
 
-  // ── Start scanner once ZXing is ready ───────────────────────────────────
+  // -- Start scanner once ZXing is ready -----------------------------------
   useEffect(() => {
     if (!zxingReady || !videoRef.current) return
     let cancelled = false
@@ -1089,7 +1089,7 @@ function BarcodeScanner({ lang, onFound, onClose }) {
     }
   }, [zxingReady])
 
-  // ── Open Food Facts lookup with proper field priority ───────────────────
+  // -- Open Food Facts lookup with proper field priority -------------------
   const lookupBarcode = async (barcode) => {
     setStatus('lookingup')
     // Stop camera immediately so user knows scan worked
@@ -1241,7 +1241,7 @@ function BarcodeScanner({ lang, onFound, onClose }) {
     </div>
   )
 }
-// ─── RECIPE BUILDER ───────────────────────────────────────────────────────────
+// --- RECIPE BUILDER -----------------------------------------------------------
 function RecipeBuilder({ lang, onClose }) {
   const { state, dispatch } = useApp()
   const t = LANGUAGES[lang] || LANGUAGES.en
@@ -1437,7 +1437,7 @@ function InlineQtyPicker({ food, onAdd, onCancel, t }) {
   )
 }
 
-// ─── JOURNAL VIEW ─────────────────────────────────────────────────────────────
+// --- JOURNAL VIEW -------------------------------------------------------------
 function JournalView({ onClose, lang }) {
   const { state } = useApp()
   const t = LANGUAGES[lang] || LANGUAGES.en
@@ -1554,7 +1554,7 @@ function JournalView({ onClose, lang }) {
   )
 }
 
-// ─── FOOD ROW ─────────────────────────────────────────────────────────────────
+// --- FOOD ROW -----------------------------------------------------------------
 function FoodRow({ food, onClick }) {
   return (
     <div onClick={onClick}
@@ -1573,7 +1573,7 @@ function FoodRow({ food, onClick }) {
   )
 }
 
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+// --- MAIN APP -----------------------------------------------------------------
 function AppInner() {
   const { state, dispatch, lang, user, goals } = useApp()
   const t = LANGUAGES[lang] || LANGUAGES.en
@@ -1875,7 +1875,7 @@ function AppInner() {
   )
 }
 
-// ─── ROOT ─────────────────────────────────────────────────────────────────────
+// --- ROOT ---------------------------------------------------------------------
 export default function App() {
   // Setup flow: lang → auth → name → body → goals → app
   const [lang, setLang] = useState(() => localStorage.getItem('vm_lang') || null)
@@ -1935,7 +1935,7 @@ export default function App() {
   )
 }
 
-// ─── STYLES ──────────────────────────────────────────────────────────────────
+// --- STYLES ------------------------------------------------------------------
 const S = {
   setupWrap: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px', fontFamily: 'system-ui, sans-serif', background: '#fafafa' },
   setupCard: { width: '100%', maxWidth: 420, background: '#fff', borderRadius: 20, border: '0.5px solid #e5e5e5', padding: '32px 28px', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' },
