@@ -235,9 +235,17 @@ const ACTIVITY_MULTIPLIERS = {
   superActive: 1.9,
 }
  
-const calcTDEE = (age, weightKg, heightCm, activity) => {
-  // Mifflin-St Jeor for women (conservative for Indian veg context, adjustable)
-  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 161
+// Unit converters
+const lbsToKg  = lbs => parseFloat((lbs * 0.453592).toFixed(1))
+const kgToLbs  = kg  => parseFloat((kg  * 2.20462).toFixed(1))
+const ftInToCm = (ft, inches) => Math.round((Number(ft) * 30.48) + (Number(inches) * 2.54))
+ 
+// Mifflin-St Jeor BMR (sex-specific)
+// Male:   10W + 6.25H - 5A + 5
+// Female: 10W + 6.25H - 5A - 161
+const calcTDEE = (age, weightKg, heightCm, activity, sex) => {
+  const offset = sex === 'female' ? -161 : 5
+  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + offset
   return Math.round(bmr * (ACTIVITY_MULTIPLIERS[activity] || 1.55))
 }
  
@@ -248,22 +256,25 @@ const calcBMI = (weightKg, heightCm) => {
  
 const bmiCategory = (bmi, t) => {
   if (bmi < 18.5) return { label: t.bmiUnderweight, color: '#378ADD' }
-  if (bmi < 25) return { label: t.bmiNormal, color: '#1D9E75' }
-  if (bmi < 30) return { label: t.bmiOverweight, color: '#EF9F27' }
-  return { label: t.bmiObese, color: '#E24B4A' }
+  if (bmi < 25)   return { label: t.bmiNormal,      color: '#1D9E75' }
+  if (bmi < 30)   return { label: t.bmiOverweight,  color: '#EF9F27' }
+  return                  { label: t.bmiObese,       color: '#E24B4A' }
 }
  
-const suggestMacros = (tdee, fitnessGoal) => {
+// Protein: 0.7g per lb bodyweight (realistic vegetarian target ~1.54g/kg)
+// Fat: 27% of calories
+// Carbs: fill remainder
+const suggestMacros = (tdee, fitnessGoal, weightKg) => {
   let calories = tdee
-  if (fitnessGoal === 'lose') calories = Math.round(tdee * 0.8)
-  if (fitnessGoal === 'gain') calories = Math.round(tdee * 1.1)
+  if (fitnessGoal === 'lose') calories = Math.round(tdee * 0.82)
+  if (fitnessGoal === 'gain') calories = Math.round(tdee * 1.10)
  
-  // Indian veg: moderate-high carb, high protein target, moderate fat
-  const protein = Math.round(calories * 0.25 / 4)  // 25% from protein
-  const fat = Math.round(calories * 0.25 / 9)       // 25% from fat
-  const carbs = Math.round(calories * 0.50 / 4)     // 50% from carbs
-  const fiber = 25
-  const sugar = Math.round(carbs * 0.1)
+  const weightLbs = kgToLbs(weightKg)
+  const protein   = Math.round(weightLbs * 0.7)
+  const fat       = Math.round((calories * 0.27) / 9)
+  const carbs     = Math.max(50, Math.round((calories - protein * 4 - fat * 9) / 4))
+  const fiber     = 28
+  const sugar     = Math.round(carbs * 0.08)
  
   return { calories, protein, carbs, sugar, fat, fiber }
 }
@@ -416,6 +427,7 @@ function AuthScreen({ lang, onAuth }) {
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
   const [showPass, setShowPass] = useState(false)
+  const [loading, setLoading] = useState(false)
  
   const validate = () => {
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -425,20 +437,126 @@ function AuthScreen({ lang, onAuth }) {
     return null
   }
  
-  const handleSubmit = () => {
+  // Cross-device auth using jsonblob.com (free, no API key, persistent blobs).
+  // Each user gets their own blob keyed by a deterministic ID derived from their email.
+  // Password is SHA-256 hashed before storage — never stored in plaintext.
+ 
+  const hashStr = async (str) => {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
+  }
+ 
+  // Blob ID = first 16 chars of SHA-256(email + app_id) — deterministic, same on every device
+  const getBlobId = async (emailKey) => {
+    const h = await hashStr(emailKey.toLowerCase() + '_vegmacro_app_v1')
+    return h.slice(0, 16)
+  }
+ 
+  const BLOB_BASE = 'https://jsonblob.com/api/jsonBlob'
+ 
+  const loadAccount = async (blobId) => {
+    try {
+      const res = await fetch(`${BLOB_BASE}/${blobId}`, { headers: { 'Accept': 'application/json' } })
+      if (res.ok) return await res.json()
+    } catch {}
+    return null
+  }
+ 
+  const saveAccount = async (blobId, data) => {
+    // Try PUT (update existing)
+    try {
+      const res = await fetch(`${BLOB_BASE}/${blobId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      if (res.ok) return true
+    } catch {}
+    // Try POST (create new) — jsonblob ignores our chosen ID on POST so we store the real ID
+    try {
+      const res = await fetch(BLOB_BASE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      if (res.ok) {
+        // Location header has the real blob URL
+        const loc = res.headers.get('Location') || ''
+        const realId = loc.split('/').pop()
+        if (realId) localStorage.setItem('vm_blob_' + blobId, realId)
+        return true
+      }
+    } catch {}
+    return false
+  }
+ 
+  const handleSubmit = async () => {
     const err = validate()
     if (err) { setError(err); return }
-    // Local auth — store hashed (simple) credentials
-    const stored = JSON.parse(localStorage.getItem('vm_accounts') || '{}')
-    if (isSignUp) {
-      if (stored[email]) { setError('Account already exists. Please sign in.'); return }
-      stored[email] = password
-      localStorage.setItem('vm_accounts', JSON.stringify(stored))
-      onAuth(email)
-    } else {
-      if (stored[email] !== password) { setError(t.authError); return }
-      onAuth(email)
+    setLoading(true)
+    setError('')
+ 
+    try {
+      const emailKey   = email.toLowerCase().trim()
+      const pwHash     = await hashStr(password + emailKey + 'vegmacro_salt')
+      const blobId     = await getBlobId(emailKey)
+      // Check for remapped real blob ID (from POST response)
+      const realBlobId = localStorage.getItem('vm_blob_' + blobId) || blobId
+ 
+      if (isSignUp) {
+        // Check if account already exists in cloud
+        const existing = await loadAccount(realBlobId)
+        if (existing && existing.pwHash) {
+          setError('Account already exists. Please sign in.')
+          setLoading(false)
+          return
+        }
+        const record = { pwHash, email: emailKey, createdAt: new Date().toISOString() }
+        await saveAccount(realBlobId, record)
+        // Also cache locally for offline use
+        const local = JSON.parse(localStorage.getItem('vm_accounts') || '{}')
+        local[emailKey] = pwHash
+        localStorage.setItem('vm_accounts', JSON.stringify(local))
+        onAuth(emailKey)
+      } else {
+        // Sign in — try cloud first, then local cache
+        let storedHash = null
+        const cloudRecord = await loadAccount(realBlobId)
+        if (cloudRecord && cloudRecord.pwHash) {
+          storedHash = cloudRecord.pwHash
+        } else {
+          const local = JSON.parse(localStorage.getItem('vm_accounts') || '{}')
+          storedHash = local[emailKey] || null
+        }
+        if (!storedHash || storedHash !== pwHash) {
+          setError(t.authError)
+          setLoading(false)
+          return
+        }
+        // Cache for offline
+        const local = JSON.parse(localStorage.getItem('vm_accounts') || '{}')
+        local[emailKey] = storedHash
+        localStorage.setItem('vm_accounts', JSON.stringify(local))
+        onAuth(emailKey)
+      }
+    } catch {
+      // Full offline fallback
+      try {
+        const emailKey = email.toLowerCase().trim()
+        const pwHash   = await hashStr(password + emailKey + 'vegmacro_salt')
+        const local    = JSON.parse(localStorage.getItem('vm_accounts') || '{}')
+        if (isSignUp) {
+          if (local[emailKey]) { setError('Account already exists.'); setLoading(false); return }
+          local[emailKey] = pwHash
+          localStorage.setItem('vm_accounts', JSON.stringify(local))
+          onAuth(emailKey)
+        } else {
+          if (local[emailKey] !== pwHash) { setError(t.authError); setLoading(false); return }
+          onAuth(emailKey)
+        }
+      } catch { setError('Something went wrong. Please try again.') }
     }
+    setLoading(false)
   }
  
   return (
@@ -491,8 +609,8 @@ function AuthScreen({ lang, onAuth }) {
  
         {error && <div style={{ background: '#FFF0F0', border: '0.5px solid #F7C1C1', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#A32D2D' }}>{error}</div>}
  
-        <button onClick={handleSubmit} style={{ ...S.btnActive, width: '100%', padding: '13px', fontSize: 15, borderRadius: 12 }}>
-          {isSignUp ? t.createAccount : t.signIn} →
+        <button onClick={handleSubmit} disabled={loading} style={{ ...S.btnActive, width: '100%', padding: '13px', fontSize: 15, borderRadius: 12, opacity: loading ? 0.7 : 1 }}>
+          {loading ? 'Please wait...' : (isSignUp ? t.createAccount : t.signIn) + ' →'}
         </button>
  
         <p style={{ textAlign: 'center', fontSize: 12, color: '#888', marginTop: 16 }}>
@@ -532,34 +650,64 @@ function LanguagePicker({ onSelect }) {
 function BodyProfileStep({ lang, onComplete, onBack }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
   const [age, setAge] = useState('')
-  const [weight, setWeight] = useState('')
-  const [height, setHeight] = useState('')
+  const [sex, setSex] = useState('male')
+ 
+  // Weight: support lbs or kg
+  const [weightUnit, setWeightUnit] = useState('lbs')
+  const [weightVal, setWeightVal] = useState('')
+ 
+  // Height: support ft/in or cm
+  const [heightUnit, setHeightUnit] = useState('ftIn')
+  const [heightFt, setHeightFt] = useState('')
+  const [heightIn, setHeightIn] = useState('')
+  const [heightCmVal, setHeightCmVal] = useState('')
+ 
   const [activity, setActivity] = useState('moderatelyActive')
   const [fitnessGoal, setFitnessGoal] = useState('maintain')
  
-  const bmi = weight && height ? calcBMI(Number(weight), Number(height)) : null
+  // Derive kg and cm for calculations regardless of display unit
+  const weightKg = weightVal
+    ? (weightUnit === 'lbs' ? lbsToKg(Number(weightVal)) : Number(weightVal))
+    : null
+  const heightCm = heightUnit === 'ftIn'
+    ? (heightFt || heightIn ? ftInToCm(heightFt || 0, heightIn || 0) : null)
+    : (heightCmVal ? Number(heightCmVal) : null)
+ 
+  const bmi     = weightKg && heightCm ? calcBMI(weightKg, heightCm) : null
   const bmiInfo = bmi ? bmiCategory(bmi, t) : null
-  const valid = age && weight && height && Number(age) > 0 && Number(weight) > 0 && Number(height) > 0
+ 
+  const valid = age && weightKg && heightCm
+    && Number(age) > 0 && weightKg > 0 && heightCm > 0
  
   const ACTIVITY_OPTIONS = [
-    { key: 'sedentary', label: t.sedentary },
-    { key: 'lightlyActive', label: t.lightlyActive },
+    { key: 'sedentary',        label: t.sedentary },
+    { key: 'lightlyActive',    label: t.lightlyActive },
     { key: 'moderatelyActive', label: t.moderatelyActive },
-    { key: 'veryActive', label: t.veryActive },
-    { key: 'superActive', label: t.superActive },
+    { key: 'veryActive',       label: t.veryActive },
+    { key: 'superActive',      label: t.superActive },
   ]
  
   const GOAL_OPTIONS = [
-    { key: 'lose', label: t.goal_lose, emoji: '📉' },
+    { key: 'lose',     label: t.goal_lose,     emoji: '📉' },
     { key: 'maintain', label: t.goal_maintain, emoji: '⚖️' },
-    { key: 'gain', label: t.goal_gain, emoji: '💪' },
+    { key: 'gain',     label: t.goal_gain,     emoji: '💪' },
   ]
  
   const handleNext = () => {
-    const tdee = calcTDEE(Number(age), Number(weight), Number(height), activity)
-    const macros = suggestMacros(tdee, fitnessGoal)
-    onComplete({ age: Number(age), weight: Number(weight), height: Number(height), activity, fitnessGoal, tdee, bmi }, macros)
+    const tdee   = calcTDEE(Number(age), weightKg, heightCm, activity, sex)
+    const macros = suggestMacros(tdee, fitnessGoal, weightKg)
+    onComplete(
+      { age: Number(age), weightKg, heightCm, activity, fitnessGoal, sex, tdee, bmi },
+      macros
+    )
   }
+ 
+  const unitToggleStyle = (active) => ({
+    flex: 1, padding: '5px', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+    background: active ? '#1D9E75' : 'transparent',
+    color: active ? '#fff' : '#888', fontWeight: active ? 600 : 400,
+    transition: 'all 0.15s',
+  })
  
   return (
     <div style={S.setupWrap}>
@@ -568,24 +716,97 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
         <h1 style={S.setupTitle}>{t.bodyProfile}</h1>
         <p style={S.setupSub}>{t.bodyProfileSub}</p>
  
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
-          {[
-            { label: `${t.age} (${t.years})`, val: age, set: setAge, ph: '25', max: 100 },
-            { label: `${t.weight} (${t.kg})`, val: weight, set: setWeight, ph: '65', max: 300 },
-            { label: `${t.height} (${t.cm})`, val: height, set: setHeight, ph: '162', max: 250 },
-          ].map(f => (
-            <div key={f.label}>
-              <label style={{ ...S.label, fontSize: 11 }}>{f.label}</label>
-              <input style={{ ...S.input, textAlign: 'center', padding: '10px 8px' }} type="number"
-                placeholder={f.ph} value={f.val}
-                onChange={e => f.set(Math.min(Number(e.target.value), f.max) || e.target.value === '' ? e.target.value : f.val)} />
+        {/* Sex selector */}
+        <div style={{ ...S.field }}>
+          <label style={S.label}>Biological Sex</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[{ key: 'male', label: '♂ Male' }, { key: 'female', label: '♀ Female' }].map(opt => (
+              <button key={opt.key} onClick={() => setSex(opt.key)}
+                style={{ flex: 1, padding: '10px', borderRadius: 10, border: '0.5px solid', fontSize: 14, cursor: 'pointer',
+                  borderColor: sex === opt.key ? '#1D9E75' : '#ddd',
+                  background: sex === opt.key ? '#E1F5EE' : '#fff',
+                  color: sex === opt.key ? '#1D9E75' : '#555',
+                  fontWeight: sex === opt.key ? 600 : 400 }}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+ 
+        {/* Age */}
+        <div style={S.field}>
+          <label style={S.label}>{t.age} ({t.years})</label>
+          <input style={{ ...S.input, maxWidth: 120 }} type="number" placeholder="25"
+            value={age} min="10" max="100"
+            onChange={e => setAge(e.target.value)} />
+        </div>
+ 
+        {/* Weight with unit toggle */}
+        <div style={S.field}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <label style={{ ...S.label, margin: 0 }}>{t.weight}</label>
+            <div style={{ display: 'flex', background: '#f0f0f0', borderRadius: 8, padding: 2, gap: 2 }}>
+              {['lbs', 'kg'].map(u => (
+                <button key={u} onClick={() => {
+                  if (u !== weightUnit && weightVal) {
+                    const converted = u === 'kg'
+                      ? lbsToKg(Number(weightVal))
+                      : kgToLbs(Number(weightVal))
+                    setWeightVal(String(converted))
+                  }
+                  setWeightUnit(u)
+                }} style={unitToggleStyle(weightUnit === u)}>{u}</button>
+              ))}
             </div>
-          ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input style={{ ...S.input, maxWidth: 120 }} type="number"
+              placeholder={weightUnit === 'lbs' ? '150' : '68'}
+              value={weightVal} min="50" max={weightUnit === 'lbs' ? '700' : '318'}
+              onChange={e => setWeightVal(e.target.value)} />
+            <span style={{ fontSize: 13, color: '#888' }}>{weightUnit}</span>
+            {weightKg && <span style={{ fontSize: 12, color: '#aaa' }}>({weightKg} kg)</span>}
+          </div>
+        </div>
+ 
+        {/* Height with unit toggle */}
+        <div style={S.field}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <label style={{ ...S.label, margin: 0 }}>{t.height}</label>
+            <div style={{ display: 'flex', background: '#f0f0f0', borderRadius: 8, padding: 2, gap: 2 }}>
+              {['ft/in', 'cm'].map(u => (
+                <button key={u} onClick={() => setHeightUnit(u === 'ft/in' ? 'ftIn' : 'cm')}
+                  style={unitToggleStyle((u === 'ft/in' ? 'ftIn' : 'cm') === heightUnit)}>{u}</button>
+              ))}
+            </div>
+          </div>
+          {heightUnit === 'ftIn' ? (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input style={{ ...S.input, maxWidth: 70, textAlign: 'center' }} type="number"
+                placeholder="5" value={heightFt} min="3" max="8"
+                onChange={e => setHeightFt(e.target.value)} />
+              <span style={{ fontSize: 13, color: '#888' }}>ft</span>
+              <input style={{ ...S.input, maxWidth: 70, textAlign: 'center' }} type="number"
+                placeholder="8" value={heightIn} min="0" max="11"
+                onChange={e => setHeightIn(Math.min(11, Number(e.target.value)))} />
+              <span style={{ fontSize: 13, color: '#888' }}>in</span>
+              {heightCm && <span style={{ fontSize: 12, color: '#aaa' }}>({heightCm} cm)</span>}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input style={{ ...S.input, maxWidth: 100 }} type="number"
+                placeholder="173" value={heightCmVal} min="100" max="250"
+                onChange={e => setHeightCmVal(e.target.value)} />
+              <span style={{ fontSize: 13, color: '#888' }}>cm</span>
+            </div>
+          )}
         </div>
  
         {/* BMI Preview */}
         {bmi && (
-          <div style={{ background: bmiInfo.color + '15', border: `0.5px solid ${bmiInfo.color}55`, borderRadius: 12, padding: '10px 14px', marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: bmiInfo.color + '15', border: `0.5px solid ${bmiInfo.color}55`,
+            borderRadius: 12, padding: '10px 14px', marginBottom: 18,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 11, color: '#888' }}>{t.bmi}</div>
               <div style={{ fontSize: 13, fontWeight: 600, color: bmiInfo.color }}>{bmiInfo.label}</div>
@@ -594,24 +815,35 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
           </div>
         )}
  
+        {/* Activity */}
         <div style={S.field}>
           <label style={S.label}>{t.activityLevel}</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {ACTIVITY_OPTIONS.map(opt => (
               <button key={opt.key} onClick={() => setActivity(opt.key)}
-                style={{ padding: '10px 14px', borderRadius: 10, border: '0.5px solid', textAlign: 'left', fontSize: 13, cursor: 'pointer', borderColor: activity === opt.key ? '#1D9E75' : '#ddd', background: activity === opt.key ? '#E1F5EE' : '#fff', color: activity === opt.key ? '#1D9E75' : '#555', fontWeight: activity === opt.key ? 500 : 400 }}>
+                style={{ padding: '10px 14px', borderRadius: 10, border: '0.5px solid', textAlign: 'left',
+                  fontSize: 13, cursor: 'pointer',
+                  borderColor: activity === opt.key ? '#1D9E75' : '#ddd',
+                  background: activity === opt.key ? '#E1F5EE' : '#fff',
+                  color: activity === opt.key ? '#1D9E75' : '#555',
+                  fontWeight: activity === opt.key ? 500 : 400 }}>
                 {opt.label}
               </button>
             ))}
           </div>
         </div>
  
+        {/* Goal */}
         <div style={S.field}>
           <label style={S.label}>{t.fitnessGoal}</label>
           <div style={{ display: 'flex', gap: 8 }}>
             {GOAL_OPTIONS.map(opt => (
               <button key={opt.key} onClick={() => setFitnessGoal(opt.key)}
-                style={{ flex: 1, padding: '10px 8px', borderRadius: 10, border: '0.5px solid', fontSize: 13, cursor: 'pointer', borderColor: fitnessGoal === opt.key ? '#1D9E75' : '#ddd', background: fitnessGoal === opt.key ? '#E1F5EE' : '#fff', color: fitnessGoal === opt.key ? '#1D9E75' : '#555' }}>
+                style={{ flex: 1, padding: '10px 8px', borderRadius: 10, border: '0.5px solid',
+                  fontSize: 13, cursor: 'pointer',
+                  borderColor: fitnessGoal === opt.key ? '#1D9E75' : '#ddd',
+                  background: fitnessGoal === opt.key ? '#E1F5EE' : '#fff',
+                  color: fitnessGoal === opt.key ? '#1D9E75' : '#555' }}>
                 {opt.emoji}<br /><span style={{ fontSize: 11 }}>{opt.label}</span>
               </button>
             ))}
@@ -628,7 +860,6 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
     </div>
   )
 }
- 
 // ─── GOALS REVIEW STEP ────────────────────────────────────────────────────────
 function GoalsReviewStep({ lang, suggestedGoals, bodyData, onComplete, onBack }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
@@ -783,136 +1014,233 @@ function AddFoodModal({ food, onConfirm, onCancel, lang }) {
 }
  
 // ─── BARCODE SCANNER ─────────────────────────────────────────────────────────
+// Uses ZXing-js (loaded from CDN) for broad browser/camera support.
+// Nutrition from Open Food Facts — reads per-serving fields with per-100g fallback.
 function BarcodeScanner({ lang, onFound, onClose }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
-  const videoRef = useRef(null)
-  const [status, setStatus] = useState('starting') // starting | scanning | error | notfound
-  const [stream, setStream] = useState(null)
-  const intervalRef = useRef(null)
+  const videoRef    = useRef(null)
+  const readerRef   = useRef(null)
+  const streamRef   = useRef(null)
+  const [status, setStatus]           = useState('loading')  // loading|scanning|lookingup|notfound|error|manual
+  const [manualBarcode, setManualBarcode] = useState('')
+  const [zxingReady, setZxingReady]   = useState(false)
  
-  // Load ZXing from CDN
+  // ── Load ZXing from CDN ──────────────────────────────────────────────────
   useEffect(() => {
-    let mounted = true
-    const startCamera = async () => {
-      try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-        })
-        if (!mounted) { mediaStream.getTracks().forEach(t => t.stop()); return }
-        setStream(mediaStream)
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream
-          await videoRef.current.play()
-        }
-        setStatus('scanning')
- 
-        // Use BarcodeDetector API if available (Chrome/Android)
-        if ('BarcodeDetector' in window) {
-          const detector = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] })
-          intervalRef.current = setInterval(async () => {
-            if (!videoRef.current || videoRef.current.readyState < 2) return
-            try {
-              const codes = await detector.detect(videoRef.current)
-              if (codes.length > 0) {
-                clearInterval(intervalRef.current)
-                await lookupBarcode(codes[0].rawValue, mounted)
-              }
-            } catch {}
-          }, 500)
-        } else {
-          // Fallback: prompt manual entry
-          setStatus('manual')
-        }
-      } catch (e) {
-        if (mounted) setStatus('error')
-      }
-    }
-    startCamera()
-    return () => {
-      mounted = false
-      if (intervalRef.current) clearInterval(intervalRef.current)
-      if (stream) stream.getTracks().forEach(t => t.stop())
-    }
+    if (window.ZXing) { setZxingReady(true); return }
+    const script = document.createElement('script')
+    script.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js'
+    script.onload  = () => setZxingReady(true)
+    script.onerror = () => setStatus('manual')
+    document.head.appendChild(script)
+    return () => { try { document.head.removeChild(script) } catch {} }
   }, [])
  
-  const stopStream = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current)
-    if (stream) stream.getTracks().forEach(t => t.stop())
+  // ── Start scanner once ZXing is ready ───────────────────────────────────
+  useEffect(() => {
+    if (!zxingReady || !videoRef.current) return
+    let cancelled = false
+ 
+    const start = async () => {
+      try {
+        const hints = new Map()
+        const formats = [
+          window.ZXing.BarcodeFormat.EAN_13,
+          window.ZXing.BarcodeFormat.EAN_8,
+          window.ZXing.BarcodeFormat.UPC_A,
+          window.ZXing.BarcodeFormat.UPC_E,
+          window.ZXing.BarcodeFormat.CODE_128,
+        ]
+        hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, formats)
+        hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true)
+ 
+        const reader = new window.ZXing.BrowserMultiFormatReader(hints, 500)
+        readerRef.current = reader
+ 
+        // Get camera stream
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        })
+        if (cancelled) { mediaStream.getTracks().forEach(tr => tr.stop()); return }
+        streamRef.current = mediaStream
+        videoRef.current.srcObject = mediaStream
+        await videoRef.current.play()
+        setStatus('scanning')
+ 
+        reader.decodeFromStream(mediaStream, videoRef.current, (result, err) => {
+          if (cancelled) return
+          if (result) {
+            cancelled = true
+            reader.reset()
+            lookupBarcode(result.getText())
+          }
+          // Ignore decode errors — they fire every frame until a code is found
+        })
+      } catch (e) {
+        if (!cancelled) setStatus('manual')
+      }
+    }
+ 
+    start()
+    return () => {
+      cancelled = true
+      if (readerRef.current) { try { readerRef.current.reset() } catch {} }
+      if (streamRef.current) streamRef.current.getTracks().forEach(tr => tr.stop())
+    }
+  }, [zxingReady])
+ 
+  // ── Open Food Facts lookup with proper field priority ───────────────────
+  const lookupBarcode = async (barcode) => {
+    setStatus('lookingup')
+    // Stop camera immediately so user knows scan worked
+    if (readerRef.current) { try { readerRef.current.reset() } catch {} }
+    if (streamRef.current) streamRef.current.getTracks().forEach(tr => tr.stop())
+ 
+    try {
+      // Use v2 API — more reliable field names
+      const res = await fetch(
+        `https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,product_name_en,brands,serving_size,serving_quantity,nutriments`,
+        { headers: { 'User-Agent': 'VegMacro/1.0' } }
+      )
+      const data = await res.json()
+ 
+      if (data.status !== 1 || !data.product) {
+        // Try UPC lookup as fallback (some US products only in OFF-US)
+        const res2 = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`)
+        const data2 = await res2.json()
+        if (data2.status !== 1) { setStatus('notfound'); return }
+        parseAndReturn(data2.product)
+        return
+      }
+      parseAndReturn(data.product)
+    } catch {
+      setStatus('error')
+    }
+  }
+ 
+  const parseAndReturn = (p) => {
+    const n = p.nutriments || {}
+ 
+    // Serving size in grams — prefer serving_quantity (numeric g), fall back to parsing serving_size string
+    let servingG = parseFloat(p.serving_quantity) || null
+    if (!servingG && p.serving_size) {
+      const m = p.serving_size.match(/(\d+\.?\d*)\s*g/i)
+      if (m) servingG = parseFloat(m[1])
+    }
+ 
+    // Helper: get the per-serving value if serving size is known, else per-100g
+    // OFF stores both: `protein_serving` (per serving) and `proteins_100g` (per 100g)
+    const perServing = (key100, keyServing) => {
+      if (servingG && n[keyServing] != null) return Math.round(n[keyServing] * 10) / 10
+      // Compute from 100g value and serving size
+      if (servingG && n[key100] != null) return Math.round((n[key100] * servingG / 100) * 10) / 10
+      // No serving info — return per-100g
+      return Math.round((n[key100] || 0) * 10) / 10
+    }
+ 
+    const portionLabel = servingG ? `1 serving (${servingG}g)` : '100g'
+ 
+    const food = {
+      name: p.product_name || p.product_name_en || 'Unknown Product',
+      portion: portionLabel,
+      calories: servingG
+        ? Math.round((n['energy-kcal_100g'] || n['energy-kcal'] || 0) * servingG / 100)
+        : Math.round(n['energy-kcal_serving'] || n['energy-kcal_100g'] || n['energy-kcal'] || 0),
+      protein: perServing('proteins_100g',      'proteins_serving'),
+      carbs:   perServing('carbohydrates_100g', 'carbohydrates_serving'),
+      fat:     perServing('fat_100g',           'fat_serving'),
+      fiber:   perServing('fiber_100g',         'fiber_serving'),
+      gi: 'Unknown',
+      source: 'BARCODE',
+    }
+    onFound(food)
+  }
+ 
+  const handleManualLookup = () => {
+    if (manualBarcode.trim()) lookupBarcode(manualBarcode.trim())
+  }
+ 
+  const handleClose = () => {
+    if (readerRef.current) { try { readerRef.current.reset() } catch {} }
+    if (streamRef.current) streamRef.current.getTracks().forEach(tr => tr.stop())
     onClose()
   }
  
-  const lookupBarcode = async (barcode, mounted = true) => {
-    setStatus('loading')
-    try {
-      const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`)
-      const data = await res.json()
-      if (data.status === 1 && mounted) {
-        const p = data.product
-        const nutriments = p.nutriments || {}
-        const food = {
-          name: p.product_name || p.product_name_en || 'Unknown Product',
-          portion: `100g`,
-          calories: Math.round(nutriments['energy-kcal_100g'] || nutriments['energy-kcal'] || 0),
-          protein: Math.round((nutriments.proteins_100g || 0) * 10) / 10,
-          carbs: Math.round((nutriments.carbohydrates_100g || 0) * 10) / 10,
-          fat: Math.round((nutriments.fat_100g || 0) * 10) / 10,
-          fiber: Math.round((nutriments.fiber_100g || 0) * 10) / 10,
-          gi: 'Unknown',
-          source: 'BARCODE',
-        }
-        if (stream) stream.getTracks().forEach(t => t.stop())
-        onFound(food)
-      } else if (mounted) {
-        setStatus('notfound')
-      }
-    } catch {
-      if (mounted) setStatus('error')
-    }
-  }
- 
-  const [manualBarcode, setManualBarcode] = useState('')
- 
   return (
     <div style={S.modalOverlay}>
-      <div style={{ ...S.modalCard, padding: 0, overflow: 'hidden' }}>
-        {/* Video viewfinder */}
-        <div style={{ position: 'relative', background: '#000', aspectRatio: '4/3' }}>
-          <video ref={videoRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} playsInline muted />
-          {/* Scanning overlay */}
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-            <div style={{ width: '70%', aspectRatio: '2/1', border: '2px solid #1D9E75', borderRadius: 8, boxShadow: '0 0 0 9999px rgba(0,0,0,0.4)' }} />
-          </div>
-          <button onClick={stopStream}
-            style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', borderRadius: 20, padding: '6px 14px', fontSize: 13, cursor: 'pointer' }}>
+      <div style={{ ...S.modalCard, padding: 0, overflow: 'hidden', maxWidth: 420 }}>
+        {/* Viewfinder */}
+        <div style={{ position: 'relative', background: '#111', width: '100%', aspectRatio: '4/3' }}>
+          <video ref={videoRef} style={{ width: '100%', height: '100%', objectFit: 'cover', display: status === 'scanning' ? 'block' : 'none' }} playsInline muted />
+ 
+          {/* Scanning overlay frame */}
+          {status === 'scanning' && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+              <div style={{ width: '78%', height: '38%', border: '2.5px solid #1D9E75', borderRadius: 10, boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)', position: 'relative' }}>
+                {/* Corner markers */}
+                {['topLeft','topRight','bottomLeft','bottomRight'].map(corner => (
+                  <div key={corner} style={{
+                    position: 'absolute',
+                    width: 20, height: 20,
+                    borderColor: '#1D9E75', borderStyle: 'solid',
+                    borderWidth: corner.includes('top') ? '3px 0 0' : '0 0 3px',
+                    ...(corner.includes('Left') ? { left: -2, borderLeftWidth: 3, borderRightWidth: 0 } : { right: -2, borderRightWidth: 3, borderLeftWidth: 0 }),
+                    ...(corner.includes('top') ? { top: -2 } : { bottom: -2 }),
+                  }} />
+                ))}
+                {/* Animated scan line */}
+                <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: '#1D9E75', animation: 'scanline 1.5s ease-in-out infinite', top: '50%' }} />
+              </div>
+            </div>
+          )}
+ 
+          {/* Non-scanning placeholder */}
+          {status !== 'scanning' && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#666' }}>
+              {status === 'loading'    && <><div style={{ fontSize: 36 }}>⏳</div><div style={{ marginTop: 8, fontSize: 14 }}>Loading scanner...</div></>}
+              {status === 'lookingup' && <><div style={{ fontSize: 36 }}>🔍</div><div style={{ marginTop: 8, fontSize: 14, color: '#fff' }}>Looking up product...</div></>}
+              {status === 'notfound'  && <><div style={{ fontSize: 36 }}>❓</div><div style={{ marginTop: 8, fontSize: 14, color: '#EF9F27' }}>{t.barcodeNotFound}</div></>}
+              {status === 'error'     && <><div style={{ fontSize: 36 }}>⚠️</div><div style={{ marginTop: 8, fontSize: 14, color: '#E24B4A' }}>{t.barcodeError}</div></>}
+              {status === 'manual'    && <><div style={{ fontSize: 36 }}>⌨️</div><div style={{ marginTop: 8, fontSize: 13, color: '#aaa' }}>Camera unavailable — enter barcode</div></>}
+            </div>
+          )}
+ 
+          <button onClick={handleClose}
+            style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.65)', border: 'none', color: '#fff', borderRadius: 20, padding: '5px 13px', fontSize: 13, cursor: 'pointer', zIndex: 2 }}>
             ✕ {t.stopScan}
           </button>
         </div>
  
-        <div style={{ padding: '16px 20px' }}>
-          {status === 'starting' && <p style={{ textAlign: 'center', color: '#888', fontSize: 14 }}>Starting camera...</p>}
-          {status === 'scanning' && <p style={{ textAlign: 'center', color: '#1D9E75', fontSize: 14 }}>📷 {t.scanning} — point at a barcode</p>}
-          {status === 'loading' && <p style={{ textAlign: 'center', color: '#378ADD', fontSize: 14 }}>Looking up product...</p>}
-          {status === 'error' && <p style={{ textAlign: 'center', color: '#E24B4A', fontSize: 14 }}>{t.barcodeError}</p>}
-          {status === 'notfound' && <p style={{ textAlign: 'center', color: '#EF9F27', fontSize: 14 }}>{t.barcodeNotFound}</p>}
+        {/* Scanline CSS animation */}
+        <style>{`@keyframes scanline { 0%,100% { top:10%; } 50% { top:85%; } }`}</style>
  
-          {/* Manual barcode entry fallback */}
-          {(status === 'manual' || status === 'error' || status === 'notfound') && (
-            <div style={{ marginTop: 12 }}>
-              <p style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>Or enter barcode manually:</p>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input style={{ ...S.input, flex: 1 }} type="number" placeholder="e.g. 8901030870115"
-                  value={manualBarcode} onChange={e => setManualBarcode(e.target.value)} />
-                <button onClick={() => manualBarcode && lookupBarcode(manualBarcode)}
-                  style={{ ...S.btnActive, padding: '10px 16px', whiteSpace: 'nowrap' }}>Look up</button>
-              </div>
-            </div>
+        <div style={{ padding: '14px 18px 18px' }}>
+          {status === 'scanning' && (
+            <p style={{ textAlign: 'center', color: '#1D9E75', fontSize: 13, margin: 0 }}>
+              📷 Point the barcode at the green box
+            </p>
           )}
+ 
+          {/* Manual entry — always visible so user can type if scan fails */}
+          <div style={{ marginTop: 12 }}>
+            <p style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>Or enter barcode number manually:</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input style={{ ...S.input, flex: 1 }} type="tel" inputMode="numeric"
+                placeholder="e.g. 014100044208"
+                value={manualBarcode}
+                onChange={e => setManualBarcode(e.target.value.replace(/\D/g, ''))}
+                onKeyDown={e => e.key === 'Enter' && handleManualLookup()} />
+              <button onClick={handleManualLookup}
+                style={{ ...S.btnActive, padding: '10px 14px', whiteSpace: 'nowrap', borderRadius: 10 }}>
+                Look up
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
 }
- 
 // ─── RECIPE BUILDER ───────────────────────────────────────────────────────────
 function RecipeBuilder({ lang, onClose }) {
   const { state, dispatch } = useApp()
@@ -1624,4 +1952,3 @@ const S = {
   modalCard: { width: '100%', maxWidth: 420, background: '#fff', borderRadius: 20, padding: '28px 24px', maxHeight: '90vh', overflowY: 'auto' },
   qtyBtn: { width: 36, height: 36, borderRadius: 10, border: '0.5px solid #ddd', background: '#f9f9f9', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   iconBtn: { fontSize: 12, color: '#aaa', background: 'none', border: '0.5px solid #ddd', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' },
-}
