@@ -1,4 +1,4 @@
-import { useState, useEffect, useReducer, useMemo, useCallback, createContext, useContext } from 'react'
+import { useState, useEffect, useReducer, useMemo, useCallback, createContext, useContext, useRef } from 'react'
  
 // ─── LANGUAGE DATA ────────────────────────────────────────────────────────────
 const LANGUAGES = {
@@ -7,7 +7,7 @@ const LANGUAGES = {
     welcome: 'Welcome to VegMacro', welcomeSub: 'The nutrition tracker built for vegetarian Indians',
     whatsYourName: "What's your name?", namePlaceholder: 'e.g. Rohin',
     continueBtn: 'Continue →', backBtn: '← Back', startBtn: 'Start tracking →',
-    setGoals: 'Set your daily goals', goalsSub: 'Enter your daily targets',
+    setGoals: 'Your Daily Targets', goalsSub: 'Based on your profile — feel free to adjust',
     calories: 'Calories', protein: 'Protein', carbs: 'Carbs', sugar: 'Sugar', fat: 'Fat', fiber: 'Fiber',
     namaste: 'Namaste', editProfile: 'Edit',
     todaysLog: "Today's Log", searchPlaceholder: 'Search Indian or any food...',
@@ -33,13 +33,41 @@ const LANGUAGES = {
     daySaved: 'Day saved!', alreadySaved: 'Already saved today — updated!',
     analyticsEmpty: 'Save at least 2 days to see trends.',
     avgRating: 'Avg rating', bestDay: 'Best day', avgProtein: 'Avg protein',
+    // Auth
+    createAccount: 'Create Account', signIn: 'Sign In', email: 'Email', password: 'Password',
+    confirmPassword: 'Confirm Password', alreadyHaveAccount: 'Already have an account? Sign in',
+    noAccount: "Don't have an account? Sign up", authError: 'Invalid email or password',
+    passwordMismatch: 'Passwords do not match', weakPassword: 'Password must be at least 6 characters',
+    invalidEmail: 'Please enter a valid email',
+    // Body profile
+    bodyProfile: 'Your Body Profile', bodyProfileSub: 'We\'ll calculate your ideal macros',
+    age: 'Age', weight: 'Weight', height: 'Height', activityLevel: 'Activity Level',
+    years: 'years', kg: 'kg', cm: 'cm',
+    sedentary: 'Sedentary (desk job, little exercise)',
+    lightlyActive: 'Lightly Active (1–3 days/week)',
+    moderatelyActive: 'Moderately Active (3–5 days/week)',
+    veryActive: 'Very Active (6–7 days/week)',
+    superActive: 'Super Active (athlete / physical job)',
+    goal_lose: 'Lose weight', goal_maintain: 'Maintain weight', goal_gain: 'Gain muscle',
+    fitnessGoal: 'Fitness Goal',
+    bmi: 'BMI', bmiUnderweight: 'Underweight', bmiNormal: 'Normal', bmiOverweight: 'Overweight', bmiObese: 'Obese',
+    tdee: 'Daily calorie need (TDEE)',
+    suggestedMacros: 'Suggested Macros', editMacros: 'Edit if needed',
+    // Recipe builder
+    recipeBuilder: 'Recipe Builder', createRecipe: '+ Create Recipe',
+    recipeName: 'Recipe name', addIngredient: 'Add Ingredient', saveRecipe: 'Save Recipe',
+    myRecipes: 'My Recipes', noRecipes: 'No recipes yet — create one!',
+    logRecipe: 'Log this recipe',
+    // Barcode
+    scanBarcode: '📷 Scan Barcode', scanning: 'Scanning...', barcodeError: 'Could not read barcode. Try again.',
+    barcodeNotFound: 'Product not found in database.', stopScan: 'Stop Scanning',
   },
   gu: {
     appName: 'VegMacro', tagline: 'ભારતીય શાકાહારી પોષણ ટ્રેકર',
     welcome: 'VegMacro માં આપનું સ્વાગત', welcomeSub: 'શાકાહારી ભારતીયો માટે બનાવેલ ટ્રેકર',
     whatsYourName: 'તમારું નામ?', namePlaceholder: 'દા.ત. રોહિન',
     continueBtn: 'આગળ →', backBtn: '← પાછળ', startBtn: 'ટ્રેકિંગ શરૂ →',
-    setGoals: 'દૈનિક લક્ષ્યો સેટ કરો', goalsSub: 'લક્ષ્યો દાખલ કરો',
+    setGoals: 'તમારા દૈનિક લક્ષ્યો', goalsSub: 'પ્રોફાઇલ આધારિત — ફેરફાર કરી શકો',
     calories: 'કેલેરી', protein: 'પ્રોટીન', carbs: 'કાર્બ્સ', sugar: 'ખાંડ', fat: 'ચરબી', fiber: 'ફાઇબર',
     namaste: 'નમસ્તે', editProfile: 'સંપાદિત',
     todaysLog: 'આજનો લોગ', searchPlaceholder: 'ભારતીય ખોરાક શોધો...',
@@ -63,13 +91,32 @@ const LANGUAGES = {
     usdaError: 'USDA ભૂલ.', totalDays: 'કુલ દિવસ', currentStreak: 'સ્ટ્રીક',
     daySaved: 'સાચવ્યું!', alreadySaved: 'અપડેટ!', analyticsEmpty: '2+ દિવસ સાચવો.',
     avgRating: 'સરેરાશ', bestDay: 'શ્રેષ્ઠ', avgProtein: 'સ. પ્રોટીન',
+    createAccount: 'એકાઉન્ટ બનાવો', signIn: 'સાઇન ઇન', email: 'ઇમેઇલ', password: 'પાસવર્ડ',
+    confirmPassword: 'પાસવર્ડ કન્ફર્મ', alreadyHaveAccount: 'એકાઉન્ટ છે? સાઇન ઇન',
+    noAccount: 'એકાઉન્ટ નથી? સાઇન અપ', authError: 'ઇમેઇલ અથવા પાસવર્ડ ખોટો',
+    passwordMismatch: 'પાસવર્ડ મેળ ખાતો નથી', weakPassword: 'ઓછામાં ઓછા 6 અક્ષર',
+    invalidEmail: 'માન્ય ઇમેઇલ દાખલ કરો',
+    bodyProfile: 'તમારી પ્રોફાઇલ', bodyProfileSub: 'અમે તમારા માટે મેક્રો ગણીશું',
+    age: 'ઉંમર', weight: 'વજન', height: 'ઊંચાઈ', activityLevel: 'પ્રવૃત્તિ સ્તર',
+    years: 'વર્ષ', kg: 'કિ.ગ્રા.', cm: 'સે.મી.',
+    sedentary: 'બેઠાડુ', lightlyActive: 'થોડો સક્રિય', moderatelyActive: 'સક્રિય',
+    veryActive: 'ખૂબ સક્રિય', superActive: 'અત્યંત સક્રિય',
+    goal_lose: 'વજન ઘટાડો', goal_maintain: 'જાળવો', goal_gain: 'સ્નાયુ બનાવો',
+    fitnessGoal: 'ફિટનેસ લક્ષ્ય',
+    bmi: 'BMI', bmiUnderweight: 'ઓછું વજન', bmiNormal: 'સામાન્ય', bmiOverweight: 'વધુ વજન', bmiObese: 'સ્થૂળ',
+    tdee: 'TDEE', suggestedMacros: 'સૂચિત મેક્રો', editMacros: 'ફેરફાર કરો',
+    recipeBuilder: 'રેસીપી બિલ્ડર', createRecipe: '+ રેસીપી બનાવો',
+    recipeName: 'રેસીપી નામ', addIngredient: 'ઘટક ઉમેરો', saveRecipe: 'સાચવો',
+    myRecipes: 'મારી રેસીપી', noRecipes: 'કોઈ રેસીપી નથી!', logRecipe: 'લોગ કરો',
+    scanBarcode: '📷 બારકોડ સ્કેન', scanning: 'સ્કેન...', barcodeError: 'ફરી પ્રયાસ કરો.',
+    barcodeNotFound: 'ઉત્પાદન મળ્યું નહીં.', stopScan: 'બંધ કરો',
   },
   hi: {
     appName: 'VegMacro', tagline: 'भारतीय शाकाहारी पोषण ट्रैकर',
     welcome: 'VegMacro में स्वागत', welcomeSub: 'शाकाहारी भारतीयों के लिए',
     whatsYourName: 'आपका नाम?', namePlaceholder: 'जैसे रोहिन',
     continueBtn: 'आगे →', backBtn: '← वापस', startBtn: 'शुरू करें →',
-    setGoals: 'दैनिक लक्ष्य', goalsSub: 'लक्ष्य दर्ज करें',
+    setGoals: 'आपके दैनिक लक्ष्य', goalsSub: 'प्रोफ़ाइल आधारित — बदल सकते हैं',
     calories: 'कैलोरी', protein: 'प्रोटीन', carbs: 'कार्ब्स', sugar: 'चीनी', fat: 'वसा', fiber: 'फाइबर',
     namaste: 'नमस्ते', editProfile: 'संपादित',
     todaysLog: 'आज का लॉग', searchPlaceholder: 'खाना खोजें...',
@@ -93,13 +140,39 @@ const LANGUAGES = {
     usdaError: 'USDA त्रुटि.', totalDays: 'कुल दिन', currentStreak: 'स्ट्रीक',
     daySaved: 'सहेजा!', alreadySaved: 'अपडेट!', analyticsEmpty: '2+ दिन सहेजें।',
     avgRating: 'औसत', bestDay: 'सर्वश्रेष्ठ', avgProtein: 'औ. प्रोटीन',
+    createAccount: 'अकाउंट बनाएं', signIn: 'साइन इन', email: 'ईमेल', password: 'पासवर्ड',
+    confirmPassword: 'पासवर्ड दोहराएं', alreadyHaveAccount: 'अकाउंट है? साइन इन',
+    noAccount: 'अकाउंट नहीं? साइन अप', authError: 'गलत ईमेल या पासवर्ड',
+    passwordMismatch: 'पासवर्ड मेल नहीं खाता', weakPassword: 'कम से कम 6 अक्षर',
+    invalidEmail: 'सही ईमेल डालें',
+    bodyProfile: 'आपकी प्रोफ़ाइल', bodyProfileSub: 'हम आपके मैक्रो गणना करेंगे',
+    age: 'उम्र', weight: 'वजन', height: 'ऊंचाई', activityLevel: 'गतिविधि स्तर',
+    years: 'साल', kg: 'किग्रा', cm: 'सेमी',
+    sedentary: 'बैठे रहना', lightlyActive: 'थोड़ा सक्रिय', moderatelyActive: 'सक्रिय',
+    veryActive: 'बहुत सक्रिय', superActive: 'अत्यंत सक्रिय',
+    goal_lose: 'वजन कम करें', goal_maintain: 'बनाए रखें', goal_gain: 'मांसपेशी बढ़ाएं',
+    fitnessGoal: 'फिटनेस लक्ष्य',
+    bmi: 'BMI', bmiUnderweight: 'कम वजन', bmiNormal: 'सामान्य', bmiOverweight: 'अधिक वजन', bmiObese: 'मोटापा',
+    tdee: 'TDEE', suggestedMacros: 'सुझाए मैक्रो', editMacros: 'बदलें',
+    recipeBuilder: 'रेसिपी बिल्डर', createRecipe: '+ रेसिपी बनाएं',
+    recipeName: 'रेसिपी नाम', addIngredient: 'सामग्री जोड़ें', saveRecipe: 'सहेजें',
+    myRecipes: 'मेरी रेसिपी', noRecipes: 'कोई रेसिपी नहीं!', logRecipe: 'लॉग करें',
+    scanBarcode: '📷 बारकोड स्कैन', scanning: 'स्कैन...', barcodeError: 'फिर कोशिश करें.',
+    barcodeNotFound: 'उत्पाद नहीं मिला.', stopScan: 'बंद करें',
   },
-  mr: { appName:'VegMacro',tagline:'भारतीय शाकाहारी पोषण',welcome:'VegMacro मध्ये स्वागत',welcomeSub:'शाकाहारी भारतीयांसाठी',whatsYourName:'तुमचे नाव?',namePlaceholder:'उदा. रोहिन',continueBtn:'पुढे →',backBtn:'← मागे',startBtn:'सुरू करा →',setGoals:'दैनंदिन उद्दिष्टे',goalsSub:'उद्दिष्टे प्रविष्ट करा',calories:'कॅलरी',protein:'प्रथिने',carbs:'कार्ब्स',sugar:'साखर',fat:'चरबी',fiber:'फायबर',namaste:'नमस्कार',editProfile:'संपादित',todaysLog:'आजचा लॉग',searchPlaceholder:'जेवण शोधा...',noFoods:'नाही',logEmpty:'वर शोधा',quantity:'प्रमाण',addToMeal:'कोणत्या जेवणात?',nutritionPreview:'पोषण',cancel:'रद्द',addTo:'जोडा',goal:'उद्दिष्ट',exceeded:'ओलांडले',lowProtein:'⚠️ प्रथिने कमी!',breakfast:'नाश्ता',lunch:'दुपार',dinner:'रात्री',snack:'स्नॅक',dessert:'गोड',chooseLanguage:'भाषा',saveDay:'💾 जतन',journal:'जर्नल',today:'आज',dayRating:'रेटिंग',savedDays:'जतन',noSavedDays:'अजून नाही!',searching:'शोधत...',usdaResults:'USDA',perServing:'सर्व्हिंग',water:'पाणी',waterIntake:'पाणी',glasses:'ग्लास',addWater:'+ ग्लास',streak:'स्ट्रीक',days:'दिवस',tips:'टीप',close:'बंद',dayNote:'नोंद...',excellent:'उत्कृष्ट',great:'छान',good:'ठीक',fair:'सामान्य',poor:'कमकुवत',aiSuggestions:'AI सूचना',getAI:'✨ सुचवा',ratingBreakdown:'स्कोर',weeklyAnalytics:'साप्ताहिक',quickAdd:'जलद',indianFoods:'भारतीय',usdaDb:'USDA',usdaError:'USDA त्रुटी.',totalDays:'एकूण',currentStreak:'स्ट्रीक',daySaved:'जतन!',alreadySaved:'अपडेट!',analyticsEmpty:'2+ दिवस जतन करा.',avgRating:'सरासरी',bestDay:'सर्वोत्तम',avgProtein:'स. प्रथिने' },
-  ta: { appName:'VegMacro',tagline:'இந்திய சைவ கண்காணிப்பு',welcome:'VegMacro வரவேற்கிறோம்',welcomeSub:'சைவ இந்தியர்களுக்காக',whatsYourName:'உங்கள் பெயர்?',namePlaceholder:'ரோஹின்',continueBtn:'தொடர் →',backBtn:'← திரும்பு',startBtn:'தொடங்கு →',setGoals:'தினசரி இலக்கு',goalsSub:'இலக்கு உள்ளிடு',calories:'கலோரி',protein:'புரதம்',carbs:'கார்ப்ஸ்',sugar:'சர்க்கரை',fat:'கொழுப்பு',fiber:'நார்',namaste:'வணக்கம்',editProfile:'திருத்து',todaysLog:'இன்று',searchPlaceholder:'உணவு தேடு...',noFoods:'இல்லை',logEmpty:'தேடுங்கள்',quantity:'அளவு',addToMeal:'வேளை?',nutritionPreview:'ஊட்டசத்து',cancel:'ரத்து',addTo:'சேர்',goal:'இலக்கு',exceeded:'தாண்டியது',lowProtein:'⚠️ புரதம் குறைவு!',breakfast:'காலை',lunch:'மதியம்',dinner:'இரவு',snack:'சிற்றுண்டி',dessert:'இனிப்பு',chooseLanguage:'மொழி',saveDay:'💾 சேமி',journal:'ஜர்னல்',today:'இன்று',dayRating:'மதிப்பீடு',savedDays:'சேமித்தவை',noSavedDays:'இன்னும் இல்லை!',searching:'தேடுகிறோம்...',usdaResults:'USDA',perServing:'பரிமாறல்',water:'தண்ணீர்',waterIntake:'தண்ணீர்',glasses:'கிளாஸ்',addWater:'+ கிளாஸ்',streak:'தொடர்',days:'நாட்கள்',tips:'குறிப்பு',close:'மூடு',dayNote:'குறிப்பு...',excellent:'சிறப்பு',great:'நல்லது',good:'ஓகே',fair:'சாதாரண',poor:'மோசம்',aiSuggestions:'AI பரிந்துரை',getAI:'✨ பரிந்துரை',ratingBreakdown:'மதிப்பெண்',weeklyAnalytics:'வாராந்திர',quickAdd:'விரைவு',indianFoods:'இந்திய',usdaDb:'USDA',usdaError:'USDA தோல்வி.',totalDays:'மொத்தம்',currentStreak:'தொடர்',daySaved:'சேமிக்கப்பட்டது!',alreadySaved:'புதுப்பிக்கப்பட்டது!',analyticsEmpty:'2+ நாட்கள் சேமிக்கவும்.',avgRating:'சராசரி',bestDay:'சிறந்த நாள்',avgProtein:'சர. புரதம்' },
-  te: { appName:'VegMacro',tagline:'భారతీయ శాకాహార ట్రాకర్',welcome:'VegMacro కి స్వాగతం',welcomeSub:'శాకాహారి భారతీయులకు',whatsYourName:'మీ పేరు?',namePlaceholder:'రోహిన్',continueBtn:'కొనసాగు →',backBtn:'← వెనక్కి',startBtn:'ప్రారంభించు →',setGoals:'రోజువారీ లక్ష్యాలు',goalsSub:'లక్ష్యాలు నమోదు',calories:'కేలరీలు',protein:'ప్రోటీన్',carbs:'కార్బ్స్',sugar:'చక్కెర',fat:'కొవ్వు',fiber:'ఫైబర్',namaste:'నమస్తే',editProfile:'సవరించు',todaysLog:'నేటి లాగ్',searchPlaceholder:'ఆహారం వెతకు...',noFoods:'లేదు',logEmpty:'వెతకండి',quantity:'పరిమాణం',addToMeal:'భోజనం?',nutritionPreview:'పోషణ',cancel:'రద్దు',addTo:'జోడించు',goal:'లక్ష్యం',exceeded:'మించింది',lowProtein:'⚠️ ప్రోటీన్ తక్కువ!',breakfast:'అల్పాహారం',lunch:'మధ్యాహ్నం',dinner:'రాత్రి',snack:'స్నాక్',dessert:'తీపి',chooseLanguage:'భాష',saveDay:'💾 సేవ్',journal:'జర్నల్',today:'నేడు',dayRating:'రేటింగ్',savedDays:'సేవ్ చేసిన',noSavedDays:'ఇంకా సేవ్ లేదు!',searching:'వెతుకుతున్నాం...',usdaResults:'USDA',perServing:'సర్వింగ్',water:'నీరు',waterIntake:'నీరు',glasses:'గ్లాసులు',addWater:'+ గ్లాస్',streak:'స్ట్రీక్',days:'రోజులు',tips:'చిట్కా',close:'మూసివేయి',dayNote:'నోట్...',excellent:'అద్భుతం',great:'గొప్ప',good:'సరే',fair:'సాధారణ',poor:'చెడు',aiSuggestions:'AI సూచనలు',getAI:'✨ సూచనలు',ratingBreakdown:'స్కోర్',weeklyAnalytics:'వారపు',quickAdd:'త్వరగా',indianFoods:'భారతీయ',usdaDb:'USDA',usdaError:'USDA వైఫల్యం.',totalDays:'మొత్తం',currentStreak:'స్ట్రీక్',daySaved:'సేవ్!',alreadySaved:'అప్డేట్!',analyticsEmpty:'2+ రోజులు సేవ్ చేయండి.',avgRating:'సగటు',bestDay:'ఉత్తమ',avgProtein:'స. ప్రోటీన్' },
-  kn: { appName:'VegMacro',tagline:'ಭಾರತೀಯ ಸಸ್ಯಾಹಾರಿ ಟ್ರ್ಯಾಕರ್',welcome:'VegMacro ಗೆ ಸ್ವಾಗತ',welcomeSub:'ಸಸ್ಯಾಹಾರಿ ಭಾರತೀಯರಿಗಾಗಿ',whatsYourName:'ನಿಮ್ಮ ಹೆಸರು?',namePlaceholder:'ರೋಹಿನ್',continueBtn:'ಮುಂದುವರಿ →',backBtn:'← ಹಿಂದೆ',startBtn:'ಪ್ರಾರಂಭ →',setGoals:'ದೈನಂದಿನ ಗುರಿ',goalsSub:'ಗುರಿ ನಮೂದಿಸಿ',calories:'ಕ್ಯಾಲೊರಿ',protein:'ಪ್ರೋಟೀನ್',carbs:'ಕಾರ್ಬ್ಸ್',sugar:'ಸಕ್ಕರೆ',fat:'ಕೊಬ್ಬು',fiber:'ಫೈಬರ್',namaste:'ನಮಸ್ತೆ',editProfile:'ಸಂಪಾದಿಸಿ',todaysLog:'ಇಂದಿನ ಲಾಗ್',searchPlaceholder:'ಆಹಾರ ಹುಡುಕಿ...',noFoods:'ಇಲ್ಲ',logEmpty:'ಹುಡುಕಿ',quantity:'ಪ್ರಮಾಣ',addToMeal:'ಊಟ?',nutritionPreview:'ಪೋಷಣೆ',cancel:'ರದ್ದು',addTo:'ಸೇರಿಸಿ',goal:'ಗುರಿ',exceeded:'ಮೀರಿತು',lowProtein:'⚠️ ಪ್ರೋಟೀನ್ ಕಡಿಮೆ!',breakfast:'ತಿಂಡಿ',lunch:'ಮಧ್ಯಾಹ್ನ',dinner:'ರಾತ್ರಿ',snack:'ಸ್ನ್ಯಾಕ್',dessert:'ಸಿಹಿ',chooseLanguage:'ಭಾಷೆ',saveDay:'💾 ಉಳಿಸಿ',journal:'ಜರ್ನಲ್',today:'ಇಂದು',dayRating:'ರೇಟಿಂಗ್',savedDays:'ಉಳಿಸಿದ',noSavedDays:'ಇನ್ನೂ ಇಲ್ಲ!',searching:'ಹುಡುಕುತ್ತಿದ್ದೇವೆ...',usdaResults:'USDA',perServing:'ಸರ್ವಿಂಗ್',water:'ನೀರು',waterIntake:'ನೀರು',glasses:'ಗ್ಲಾಸ್',addWater:'+ ಗ್ಲಾಸ್',streak:'ಸ್ಟ್ರೀಕ್',days:'ದಿನ',tips:'ಟಿಪ್',close:'ಮುಚ್ಚಿ',dayNote:'ಟಿಪ್ಪಣಿ...',excellent:'ಅತ್ಯುತ್ತಮ',great:'ಚೆನ್ನಾಗಿದೆ',good:'ಸರಿ',fair:'ಸಾಧಾರಣ',poor:'ಕಳಪೆ',aiSuggestions:'AI ಸೂಚನೆ',getAI:'✨ ಸೂಚಿಸಿ',ratingBreakdown:'ಸ್ಕೋರ್',weeklyAnalytics:'ವಾರದ',quickAdd:'ತ್ವರಿತ',indianFoods:'ಭಾರತೀಯ',usdaDb:'USDA',usdaError:'USDA ವಿಫಲ.',totalDays:'ಒಟ್ಟು',currentStreak:'ಸ್ಟ್ರೀಕ್',daySaved:'ಉಳಿಸಲಾಗಿದೆ!',alreadySaved:'ನವೀಕರಿಸಲಾಗಿದೆ!',analyticsEmpty:'2+ ದಿನ ಉಳಿಸಿ.',avgRating:'ಸರಾಸರಿ',bestDay:'ಉತ್ತಮ',avgProtein:'ಸ. ಪ್ರೋಟೀನ್' },
-  pa: { appName:'VegMacro',tagline:'ਭਾਰਤੀ ਸ਼ਾਕਾਹਾਰੀ ਟਰੈਕਰ',welcome:'VegMacro ਵਿੱਚ ਸੁਆਗਤ',welcomeSub:'ਸ਼ਾਕਾਹਾਰੀ ਭਾਰਤੀਆਂ ਲਈ',whatsYourName:'ਤੁਹਾਡਾ ਨਾਮ?',namePlaceholder:'ਰੋਹਿਨ',continueBtn:'ਅੱਗੇ →',backBtn:'← ਵਾਪਸ',startBtn:'ਸ਼ੁਰੂ →',setGoals:'ਰੋਜ਼ਾਨਾ ਟੀਚੇ',goalsSub:'ਟੀਚੇ ਦਰਜ',calories:'ਕੈਲੋਰੀ',protein:'ਪ੍ਰੋਟੀਨ',carbs:'ਕਾਰਬਸ',sugar:'ਖੰਡ',fat:'ਚਰਬੀ',fiber:'ਫਾਈਬਰ',namaste:'ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ',editProfile:'ਸੰਪਾਦਿਤ',todaysLog:'ਅੱਜ',searchPlaceholder:'ਖਾਣਾ ਲੱਭੋ...',noFoods:'ਨਹੀਂ ਮਿਲਿਆ',logEmpty:'ਉੱਪਰ ਲੱਭੋ',quantity:'ਮਾਤਰਾ',addToMeal:'ਭੋਜਨ?',nutritionPreview:'ਪੋਸ਼ਣ',cancel:'ਰੱਦ',addTo:'ਜੋੜੋ',goal:'ਟੀਚਾ',exceeded:'ਵੱਧ',lowProtein:'⚠️ ਪ੍ਰੋਟੀਨ ਘੱਟ!',breakfast:'ਨਾਸ਼ਤਾ',lunch:'ਦੁਪਹਿਰ',dinner:'ਰਾਤ',snack:'ਸਨੈਕ',dessert:'ਮਠਿਆਈ',chooseLanguage:'ਭਾਸ਼ਾ',saveDay:'💾 ਸੇਵ',journal:'ਜਰਨਲ',today:'ਅੱਜ',dayRating:'ਰੇਟਿੰਗ',savedDays:'ਸੇਵ',noSavedDays:'ਹਜੇ ਨਹੀਂ!',searching:'ਲੱਭ ਰਹੇ...',usdaResults:'USDA',perServing:'ਸਰਵਿੰਗ',water:'ਪਾਣੀ',waterIntake:'ਪਾਣੀ',glasses:'ਗਿਲਾਸ',addWater:'+ ਗਿਲਾਸ',streak:'ਸਟ੍ਰੀਕ',days:'ਦਿਨ',tips:'ਟਿਪ',close:'ਬੰਦ',dayNote:'ਨੋਟ...',excellent:'ਸ਼ਾਨਦਾਰ',great:'ਵਧੀਆ',good:'ਠੀਕ',fair:'ਸਧਾਰਨ',poor:'ਮਾੜਾ',aiSuggestions:'AI ਸੁਝਾਅ',getAI:'✨ ਸੁਝਾਅ',ratingBreakdown:'ਸਕੋਰ',weeklyAnalytics:'ਹਫਤਾਵਾਰੀ',quickAdd:'ਜਲਦੀ',indianFoods:'ਭਾਰਤੀ',usdaDb:'USDA',usdaError:'USDA ਗਲਤੀ.',totalDays:'ਕੁੱਲ',currentStreak:'ਸਟ੍ਰੀਕ',daySaved:'ਸੇਵ!',alreadySaved:'ਅਪਡੇਟ!',analyticsEmpty:'2+ ਦਿਨ ਸੇਵ ਕਰੋ.',avgRating:'ਔਸਤ',bestDay:'ਸਭ ਤੋਂ ਵਧੀਆ',avgProtein:'ਔ. ਪ੍ਰੋਟੀਨ' },
 }
+ 
+// Add remaining languages with English fallback for new keys
+const LANG_CODES = ['en', 'gu', 'hi', 'mr', 'ta', 'te', 'kn', 'pa']
+LANG_CODES.forEach(code => {
+  if (!LANGUAGES[code]) LANGUAGES[code] = { ...LANGUAGES.en }
+  else {
+    // Fill missing keys from English
+    Object.keys(LANGUAGES.en).forEach(k => {
+      if (!LANGUAGES[code][k]) LANGUAGES[code][k] = LANGUAGES.en[k]
+    })
+  }
+})
  
 const LANG_OPTIONS = [
   { code: 'en', label: 'English' }, { code: 'gu', label: 'ગુજરાતી' },
@@ -109,8 +182,6 @@ const LANG_OPTIONS = [
 ]
  
 // ─── FOOD DATABASE ────────────────────────────────────────────────────────────
-// Each food has: id (stable key), category (protein/carb/fat/mixed/sweet),
-// cuisine tag — this structure enables filtering, ML, and recommendations later
 const LOCAL_FOODS = [
   { id:'paneer', name:'Paneer', category:'protein', cuisine:'indian', portion:'100g', calories:265, protein:18, carbs:1, fat:20, fiber:0, gi:'Low' },
   { id:'masoor_dal', name:'Masoor dal (cooked)', category:'protein', cuisine:'indian', portion:'1 katori (150g)', calories:138, protein:10, carbs:24, fat:1, fiber:8, gi:'Low' },
@@ -130,40 +201,16 @@ const LOCAL_FOODS = [
   { id:'dhokla', name:'Dhokla', category:'mixed', cuisine:'gujarati', portion:'4 pieces (120g)', calories:160, protein:7, carbs:28, fat:3, fiber:2, gi:'Medium' },
   { id:'thepla', name:'Thepla', category:'carb', cuisine:'gujarati', portion:'2 thepla (80g)', calories:220, protein:6, carbs:30, fat:8, fiber:4, gi:'Medium' },
   { id:'khakhra', name:'Khakhra', category:'carb', cuisine:'gujarati', portion:'3 pieces (45g)', calories:180, protein:5, carbs:28, fat:5, fiber:3, gi:'Medium' },
-  { id:'fafda', name:'Fafda', category:'carb', cuisine:'gujarati', portion:'6 pieces (60g)', calories:210, protein:5, carbs:22, fat:11, fiber:2, gi:'Medium' },
-  { id:'jalebi', name:'Jalebi', category:'sweet', cuisine:'gujarati', portion:'2 pieces (60g)', calories:200, protein:2, carbs:44, fat:4, fiber:0, gi:'High' },
-  { id:'undhiyu', name:'Undhiyu', category:'mixed', cuisine:'gujarati', portion:'1 katori (200g)', calories:280, protein:8, carbs:32, fat:13, fiber:9, gi:'Low' },
-  { id:'guj_dal', name:'Gujarati dal', category:'protein', cuisine:'gujarati', portion:'1 katori (200g)', calories:160, protein:8, carbs:26, fat:4, fiber:6, gi:'Low' },
-  { id:'kadhi', name:'Kadhi', category:'mixed', cuisine:'gujarati', portion:'1 katori (200g)', calories:120, protein:5, carbs:14, fat:5, fiber:1, gi:'Low' },
+  { id:'rajma_rice', name:'Rajma rice', category:'mixed', cuisine:'indian', portion:'1 plate (300g)', calories:375, protein:15, carbs:70, fat:2, fiber:10, gi:'Low' },
   { id:'khichdi', name:'Khichdi', category:'mixed', cuisine:'indian', portion:'1 katori (200g)', calories:220, protein:8, carbs:38, fat:4, fiber:4, gi:'Medium' },
-  { id:'patra', name:'Patra', category:'mixed', cuisine:'gujarati', portion:'4 pieces (100g)', calories:170, protein:5, carbs:26, fat:6, fiber:4, gi:'Medium' },
-  { id:'methi_thepla', name:'Methi thepla', category:'carb', cuisine:'gujarati', portion:'2 thepla (80g)', calories:210, protein:6, carbs:28, fat:8, fiber:5, gi:'Low' },
-  { id:'sev_usal', name:'Sev usal', category:'mixed', cuisine:'gujarati', portion:'1 plate (200g)', calories:310, protein:10, carbs:42, fat:11, fiber:8, gi:'Medium' },
-  { id:'dabeli', name:'Dabeli', category:'mixed', cuisine:'gujarati', portion:'1 piece (120g)', calories:260, protein:6, carbs:40, fat:9, fiber:3, gi:'Medium' },
-  { id:'khandvi', name:'Khandvi', category:'protein', cuisine:'gujarati', portion:'6 rolls (100g)', calories:150, protein:6, carbs:20, fat:5, fiber:2, gi:'Low' },
-  { id:'bajra_rotla', name:'Bajra rotla', category:'carb', cuisine:'gujarati', portion:'1 rotla (60g)', calories:155, protein:4, carbs:28, fat:3, fiber:4, gi:'Low' },
-  { id:'locho', name:'Surti locho', category:'mixed', cuisine:'gujarati', portion:'1 plate (150g)', calories:230, protein:9, carbs:34, fat:7, fiber:3, gi:'Medium' },
-  { id:'muthiya', name:'Muthiya (steamed)', category:'mixed', cuisine:'gujarati', portion:'4 pieces (120g)', calories:190, protein:7, carbs:30, fat:5, fiber:5, gi:'Medium' },
-  { id:'ringan_olo', name:'Ringan no olo', category:'mixed', cuisine:'gujarati', portion:'1 katori (150g)', calories:130, protein:3, carbs:16, fat:6, fiber:5, gi:'Low' },
-  { id:'toor_dal', name:'Toor dal (Gujarati)', category:'protein', cuisine:'gujarati', portion:'1 katori (200g)', calories:170, protein:10, carbs:28, fat:3, fiber:6, gi:'Low' },
-  { id:'handvo', name:'Handvo', category:'mixed', cuisine:'gujarati', portion:'1 slice (120g)', calories:210, protein:8, carbs:30, fat:7, fiber:4, gi:'Medium' },
-  { id:'vag_khichdi', name:'Vaghareli khichdi', category:'mixed', cuisine:'gujarati', portion:'1 katori (200g)', calories:250, protein:7, carbs:40, fat:7, fiber:3, gi:'Medium' },
-  { id:'chora', name:'Chora (black eyed peas)', category:'protein', cuisine:'gujarati', portion:'1 katori (150g)', calories:165, protein:11, carbs:28, fat:1, fiber:8, gi:'Low' },
-  { id:'valor_papdi', name:'Valor papdi nu shaak', category:'mixed', cuisine:'gujarati', portion:'1 katori (150g)', calories:145, protein:6, carbs:20, fat:5, fiber:7, gi:'Low' },
-  { id:'dudhi_muthiya', name:'Dudhi muthiya', category:'mixed', cuisine:'gujarati', portion:'4 pieces (120g)', calories:175, protein:6, carbs:28, fat:5, fiber:4, gi:'Medium' },
   { id:'chaas', name:'Chaas (buttermilk)', category:'protein', cuisine:'gujarati', portion:'1 glass (250ml)', calories:60, protein:3, carbs:5, fat:2, fiber:0, gi:'Low' },
   { id:'shrikhand', name:'Shrikhand', category:'sweet', cuisine:'gujarati', portion:'1 katori (100g)', calories:230, protein:7, carbs:38, fat:6, fiber:0, gi:'Medium' },
-  { id:'basundi', name:'Basundi', category:'sweet', cuisine:'gujarati', portion:'1 katori (150g)', calories:290, protein:9, carbs:42, fat:10, fiber:0, gi:'High' },
-  { id:'puran_poli', name:'Puran poli', category:'sweet', cuisine:'gujarati', portion:'1 piece (80g)', calories:250, protein:6, carbs:44, fat:6, fiber:4, gi:'Medium' },
-  { id:'vatana_shaak', name:'Vatana nu shaak', category:'mixed', cuisine:'gujarati', portion:'1 katori (150g)', calories:155, protein:7, carbs:22, fat:5, fiber:6, gi:'Low' },
-  { id:'batata_vada', name:'Batata vada', category:'carb', cuisine:'gujarati', portion:'2 pieces (100g)', calories:260, protein:5, carbs:34, fat:12, fiber:3, gi:'Medium' },
-  { id:'bhinda', name:'Bhinda nu shaak (okra)', category:'mixed', cuisine:'gujarati', portion:'1 katori (150g)', calories:120, protein:3, carbs:14, fat:6, fiber:5, gi:'Low' },
-  { id:'mag_dal', name:'Mag ni dal (whole moong)', category:'protein', cuisine:'gujarati', portion:'1 katori (150g)', calories:148, protein:10, carbs:24, fat:1, fiber:7, gi:'Low' },
-  { id:'rotlo_ghee', name:'Rotlo with ghee', category:'carb', cuisine:'gujarati', portion:'1 rotlo + ghee', calories:195, protein:4, carbs:28, fat:8, fiber:4, gi:'Low' },
-  { id:'chikki', name:'Chikki (groundnut)', category:'sweet', cuisine:'gujarati', portion:'1 piece (30g)', calories:155, protein:4, carbs:18, fat:8, fiber:1, gi:'Medium' },
   { id:'sev', name:'Sev (plain)', category:'carb', cuisine:'gujarati', portion:'1 katori (30g)', calories:150, protein:4, carbs:18, fat:7, fiber:1, gi:'Medium' },
-  { id:'adadiya', name:'Adadiya pak', category:'sweet', cuisine:'gujarati', portion:'1 piece (40g)', calories:200, protein:6, carbs:20, fat:11, fiber:2, gi:'Medium' },
-  { id:'mohanthal', name:'Mohanthal', category:'sweet', cuisine:'gujarati', portion:'1 piece (60g)', calories:270, protein:5, carbs:36, fat:12, fiber:2, gi:'High' },
+  { id:'methi_thepla', name:'Methi thepla', category:'carb', cuisine:'gujarati', portion:'2 thepla (80g)', calories:210, protein:6, carbs:28, fat:8, fiber:5, gi:'Low' },
+  { id:'undhiyu', name:'Undhiyu', category:'mixed', cuisine:'gujarati', portion:'1 katori (200g)', calories:280, protein:8, carbs:32, fat:13, fiber:9, gi:'Low' },
+  { id:'toor_dal', name:'Toor dal (Gujarati)', category:'protein', cuisine:'gujarati', portion:'1 katori (200g)', calories:170, protein:10, carbs:28, fat:3, fiber:6, gi:'Low' },
+  { id:'bajra_rotla', name:'Bajra rotla', category:'carb', cuisine:'gujarati', portion:'1 rotla (60g)', calories:155, protein:4, carbs:28, fat:3, fiber:4, gi:'Low' },
+  { id:'mag_dal', name:'Mag ni dal (whole moong)', category:'protein', cuisine:'gujarati', portion:'1 katori (150g)', calories:148, protein:10, carbs:24, fat:1, fiber:7, gi:'Low' },
 ]
  
 const HEALTH_TIPS = [
@@ -179,30 +226,67 @@ const HEALTH_TIPS = [
   "Eating a small katori of curd with meals slows carb absorption and adds gut-friendly probiotics.",
 ]
  
-// ─── STATE MANAGEMENT (useReducer) ───────────────────────────────────────────
+// ─── TDEE / MACRO CALCULATOR ─────────────────────────────────────────────────
+const ACTIVITY_MULTIPLIERS = {
+  sedentary: 1.2,
+  lightlyActive: 1.375,
+  moderatelyActive: 1.55,
+  veryActive: 1.725,
+  superActive: 1.9,
+}
+ 
+const calcTDEE = (age, weightKg, heightCm, activity) => {
+  // Mifflin-St Jeor for women (conservative for Indian veg context, adjustable)
+  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 161
+  return Math.round(bmr * (ACTIVITY_MULTIPLIERS[activity] || 1.55))
+}
+ 
+const calcBMI = (weightKg, heightCm) => {
+  const h = heightCm / 100
+  return Math.round((weightKg / (h * h)) * 10) / 10
+}
+ 
+const bmiCategory = (bmi, t) => {
+  if (bmi < 18.5) return { label: t.bmiUnderweight, color: '#378ADD' }
+  if (bmi < 25) return { label: t.bmiNormal, color: '#1D9E75' }
+  if (bmi < 30) return { label: t.bmiOverweight, color: '#EF9F27' }
+  return { label: t.bmiObese, color: '#E24B4A' }
+}
+ 
+const suggestMacros = (tdee, fitnessGoal) => {
+  let calories = tdee
+  if (fitnessGoal === 'lose') calories = Math.round(tdee * 0.8)
+  if (fitnessGoal === 'gain') calories = Math.round(tdee * 1.1)
+ 
+  // Indian veg: moderate-high carb, high protein target, moderate fat
+  const protein = Math.round(calories * 0.25 / 4)  // 25% from protein
+  const fat = Math.round(calories * 0.25 / 9)       // 25% from fat
+  const carbs = Math.round(calories * 0.50 / 4)     // 50% from carbs
+  const fiber = 25
+  const sugar = Math.round(carbs * 0.1)
+ 
+  return { calories, protein, carbs, sugar, fat, fiber }
+}
+ 
+// ─── STATE ────────────────────────────────────────────────────────────────────
 const initialState = {
-  log: [],
-  journal: {},
-  goals: null,
-  waterGlasses: 0,
-  dayNote: '',
+  log: [], journal: {}, goals: null, waterGlasses: 0, dayNote: '', recipes: [],
 }
  
 function appReducer(state, action) {
   switch (action.type) {
-    case 'LOAD_STATE': return { ...state, ...action.payload }
     case 'ADD_FOOD': return { ...state, log: [...state.log, action.food] }
     case 'REMOVE_FOOD': return { ...state, log: state.log.filter((_, i) => i !== action.index) }
     case 'SET_GOALS': return { ...state, goals: action.goals }
     case 'SET_WATER': return { ...state, waterGlasses: action.val }
     case 'SET_NOTE': return { ...state, dayNote: action.val }
     case 'SAVE_DAY': return { ...state, journal: { ...state.journal, [action.key]: action.entry } }
-    case 'CLEAR_LOG': return { ...state, log: [], waterGlasses: 0, dayNote: '' }
+    case 'SAVE_RECIPE': return { ...state, recipes: [...state.recipes.filter(r => r.id !== action.recipe.id), action.recipe] }
+    case 'DELETE_RECIPE': return { ...state, recipes: state.recipes.filter(r => r.id !== action.id) }
     default: return state
   }
 }
  
-// ─── APP CONTEXT ─────────────────────────────────────────────────────────────
 const AppContext = createContext(null)
 const useApp = () => useContext(AppContext)
  
@@ -224,73 +308,46 @@ const scaleFood = (food, qty) => ({
   fiber: Math.round(food.fiber * qty * 10) / 10,
 })
  
-// Real streak: walk backwards from today counting consecutive saved days
 const calcStreak = (journal) => {
   let count = 0
   const d = new Date()
-  // Allow today OR yesterday to count as "active" streak
-  // so saving at end of day doesn't break it
   while (true) {
     const key = d.toISOString().slice(0, 10)
-    if (journal[key]) {
-      count++
-      d.setDate(d.getDate() - 1)
-    } else {
-      // Allow one gap for today if not yet saved
+    if (journal[key]) { count++; d.setDate(d.getDate() - 1) }
+    else {
       if (count === 0) {
         d.setDate(d.getDate() - 1)
         const yKey = d.toISOString().slice(0, 10)
-        if (journal[yKey]) { count++; d.setDate(d.getDate() - 1) }
-        else break
+        if (journal[yKey]) { count++; d.setDate(d.getDate() - 1) } else break
       } else break
     }
   }
   return count
 }
  
-// Weighted rating — protein gets 3x because that's the core mission
-// Max possible score = (3+1+1+1+2) * 2 = 16 points → normalize to 10
 const WEIGHTS = { protein: 3, calories: 2, carbs: 1, fat: 1, fiber: 1 }
-const MAX_SCORE = Object.values(WEIGHTS).reduce((s, w) => s + w * 2, 0) // = 16
+const MAX_SCORE = Object.values(WEIGHTS).reduce((s, w) => s + w * 2, 0)
  
 const calcRatingWithBreakdown = (totals, goals) => {
   const checks = [
-    { key: 'protein',  label: 'Protein',  val: totals.protein,  goal: goals.protein },
+    { key: 'protein', label: 'Protein', val: totals.protein, goal: goals.protein },
     { key: 'calories', label: 'Calories', val: totals.calories, goal: goals.calories },
-    { key: 'carbs',    label: 'Carbs',    val: totals.carbs,    goal: goals.carbs },
-    { key: 'fat',      label: 'Fat',      val: totals.fat,      goal: goals.fat },
-    { key: 'fiber',    label: 'Fiber',    val: totals.fiber,    goal: goals.fiber },
+    { key: 'carbs', label: 'Carbs', val: totals.carbs, goal: goals.carbs },
+    { key: 'fat', label: 'Fat', val: totals.fat, goal: goals.fat },
+    { key: 'fiber', label: 'Fiber', val: totals.fiber, goal: goals.fiber },
   ]
   let score = 0
   const reasons = []
- 
   checks.forEach(c => {
     const w = WEIGHTS[c.key]
     const pct = c.val / c.goal
     let pts = 0
-    let symbol = ''
- 
-    if (pct >= 0.85 && pct <= 1.05) {
-      pts = w * 2
-      symbol = `+${pts} — ${c.label} hit goal ✓`
-      reasons.push({ text: symbol, color: '#1D9E75' })
-    } else if (pct >= 0.65 && pct <= 1.2) {
-      pts = w * 1
-      symbol = `+${pts} — ${c.label} close to goal`
-      reasons.push({ text: symbol, color: '#EF9F27' })
-    } else if (pct > 1.2) {
-      pts = -(w * 0.5)
-      symbol = `${pts.toFixed(1)} — ${c.label} exceeded goal`
-      reasons.push({ text: symbol, color: '#E24B4A' })
-    } else {
-      pts = 0
-      symbol = `+0 — ${c.label} too low (${Math.round(pct * 100)}% of goal)`
-      reasons.push({ text: symbol, color: '#aaa' })
-    }
+    if (pct >= 0.85 && pct <= 1.05) { pts = w * 2; reasons.push({ text: `+${pts} — ${c.label} hit goal ✓`, color: '#1D9E75' }) }
+    else if (pct >= 0.65 && pct <= 1.2) { pts = w; reasons.push({ text: `+${pts} — ${c.label} close to goal`, color: '#EF9F27' }) }
+    else if (pct > 1.2) { pts = -(w * 0.5); reasons.push({ text: `${pts.toFixed(1)} — ${c.label} exceeded goal`, color: '#E24B4A' }) }
+    else { reasons.push({ text: `+0 — ${c.label} too low (${Math.round(pct * 100)}% of goal)`, color: '#aaa' }) }
     score += pts
   })
- 
-  // Normalize: (score / MAX_SCORE) * 10, clamped 1–10
   const rating = Math.max(1, Math.min(10, Math.round((score / MAX_SCORE) * 10)))
   return { rating, reasons }
 }
@@ -311,10 +368,23 @@ const getMeals = (t) => [
   { key: 'dessert', label: t.dessert, emoji: '🍮' },
 ]
  
-// ─── USDA API ────────────────────────────────────────────────────────────────
-// Key comes from .env file (VITE_USDA_KEY). Falls back to DEMO_KEY which
-// works but rate-limits heavily — get a free key at fdc.nal.usda.gov/api-key-signup
-const USDA_KEY = import.meta.env.VITE_USDA_KEY || 'DEMO_KEY'
+const getAISuggestions = (totals, goals) => {
+  const suggestions = []
+  const proteinGap = goals.protein - totals.protein
+  const carbsLeft = goals.carbs - totals.carbs
+  const fiberGap = goals.fiber - totals.fiber
+  if (proteinGap > 30) suggestions.push({ emoji: '🧀', food: 'Paneer (100g)', reason: `Adds 18g protein — you need ${Math.round(proteinGap)}g more` })
+  if (proteinGap > 20) suggestions.push({ emoji: '🌱', food: 'Soya chunks (30g dry)', reason: `Adds 13g protein — cheap and quick` })
+  if (proteinGap > 10) suggestions.push({ emoji: '🥛', food: 'Curd (1 katori)', reason: `Adds 6g protein — good for digestion` })
+  if (fiberGap > 10) suggestions.push({ emoji: '🫘', food: 'Rajma (1 katori)', reason: `Adds 9g fiber + 11g protein` })
+  if (carbsLeft > 80) suggestions.push({ emoji: '🍚', food: 'Khichdi (1 katori)', reason: `Balanced carbs + protein` })
+  if (carbsLeft < 20 && totals.carbs > 0) suggestions.push({ emoji: '⚠️', food: 'Skip rice/roti next meal', reason: `Near carb limit` })
+  if (totals.calories < goals.calories * 0.6) suggestions.push({ emoji: '🍛', food: 'Add a full meal', reason: `Under 60% of calorie goal` })
+  return suggestions.slice(0, 4)
+}
+ 
+// ─── USDA API ─────────────────────────────────────────────────────────────────
+const USDA_KEY = typeof import !== 'undefined' && import.meta?.env?.VITE_USDA_KEY || 'DEMO_KEY'
 const searchUSDA = async (query, signal) => {
   const res = await fetch(
     `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=6&api_key=${USDA_KEY}`,
@@ -329,49 +399,122 @@ const searchUSDA = async (query, signal) => {
       return Math.round((n?.value || 0) * 10) / 10
     }
     return {
-      name: f.description?.slice(0, 50) || 'Unknown',
-      portion: '100g',
+      name: f.description?.slice(0, 50) || 'Unknown', portion: '100g',
       calories: Math.round(get('energy') || get('calorie')),
-      protein: get('protein'),
-      carbs: get('carbohydrate'),
-      fat: get('total lipid'),
-      fiber: get('fiber'),
-      gi: 'Unknown',
-      source: 'USDA',
+      protein: get('protein'), carbs: get('carbohydrate'),
+      fat: get('total lipid'), fiber: get('fiber'), gi: 'Unknown', source: 'USDA',
     }
   })
 }
  
-// ─── AI SUGGESTIONS ──────────────────────────────────────────────────────────
-const getAISuggestions = (totals, goals) => {
-  const suggestions = []
-  const proteinGap = goals.protein - totals.protein
-  const carbsLeft = goals.carbs - totals.carbs
-  const fiberGap = goals.fiber - totals.fiber
+// ─── AUTH SCREEN ──────────────────────────────────────────────────────────────
+function AuthScreen({ lang, onAuth }) {
+  const t = LANGUAGES[lang] || LANGUAGES.en
+  const [isSignUp, setIsSignUp] = useState(true)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState('')
+  const [showPass, setShowPass] = useState(false)
  
-  if (proteinGap > 30) suggestions.push({ emoji: '🧀', food: 'Paneer (100g)', reason: `Adds 18g protein — you need ${Math.round(proteinGap)}g more` })
-  if (proteinGap > 20) suggestions.push({ emoji: '🌱', food: 'Soya chunks (30g dry)', reason: `Adds 13g protein — cheap and quick to make` })
-  if (proteinGap > 10) suggestions.push({ emoji: '🥛', food: 'Curd (1 katori)', reason: `Adds 6g protein — also good for digestion` })
-  if (proteinGap > 5) suggestions.push({ emoji: '🌿', food: 'Moong sprouts (1 katori)', reason: `Adds 4g protein — raw, no cooking needed` })
-  if (fiberGap > 10) suggestions.push({ emoji: '🫘', food: 'Rajma (1 katori)', reason: `Adds 9g fiber + 11g protein — double win` })
-  if (fiberGap > 5) suggestions.push({ emoji: '🥬', food: 'Undhiyu or Valor papdi', reason: `7–9g fiber per katori — great fiber boost` })
-  if (carbsLeft > 80) suggestions.push({ emoji: '🍚', food: 'Khichdi (1 katori)', reason: `Balanced carbs + protein — low GI and filling` })
-  if (carbsLeft < 20 && totals.carbs > 0) suggestions.push({ emoji: '⚠️', food: 'Skip rice/roti next meal', reason: `You are near your carb limit for the day` })
-  if (totals.calories < goals.calories * 0.6) suggestions.push({ emoji: '🍛', food: 'Add a full meal', reason: `You have eaten less than 60% of your calorie goal` })
-  if (totals.fat > goals.fat * 1.1) suggestions.push({ emoji: '🥗', food: 'Try steamed muthiya or dhokla', reason: `Lower fat options to balance your macros` })
+  const validate = () => {
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    if (!emailOk) return t.invalidEmail
+    if (password.length < 6) return t.weakPassword
+    if (isSignUp && password !== confirm) return t.passwordMismatch
+    return null
+  }
  
-  return suggestions.slice(0, 4)
+  const handleSubmit = () => {
+    const err = validate()
+    if (err) { setError(err); return }
+    // Local auth — store hashed (simple) credentials
+    const stored = JSON.parse(localStorage.getItem('vm_accounts') || '{}')
+    if (isSignUp) {
+      if (stored[email]) { setError('Account already exists. Please sign in.'); return }
+      stored[email] = password
+      localStorage.setItem('vm_accounts', JSON.stringify(stored))
+      onAuth(email)
+    } else {
+      if (stored[email] !== password) { setError(t.authError); return }
+      onAuth(email)
+    }
+  }
+ 
+  return (
+    <div style={S.setupWrap}>
+      <div style={{ ...S.setupCard, maxWidth: 400 }}>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontSize: 44, marginBottom: 8 }}>🥗</div>
+          <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>VegMacro</h1>
+          <p style={{ fontSize: 13, color: '#888', marginTop: 4 }}>{t.tagline}</p>
+        </div>
+ 
+        <div style={{ display: 'flex', background: '#f5f5f5', borderRadius: 10, padding: 3, marginBottom: 24 }}>
+          {[{ label: t.createAccount, val: true }, { label: t.signIn, val: false }].map(opt => (
+            <button key={String(opt.val)} onClick={() => { setIsSignUp(opt.val); setError('') }}
+              style={{ flex: 1, padding: '9px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', background: isSignUp === opt.val ? '#fff' : 'transparent', color: isSignUp === opt.val ? '#1D9E75' : '#888', boxShadow: isSignUp === opt.val ? '0 1px 4px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.15s' }}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+ 
+        <div style={S.field}>
+          <label style={S.label}>{t.email}</label>
+          <input style={S.input} type="email" placeholder="you@example.com" value={email}
+            onChange={e => { setEmail(e.target.value); setError('') }} />
+        </div>
+ 
+        <div style={S.field}>
+          <label style={S.label}>{t.password}</label>
+          <div style={{ position: 'relative' }}>
+            <input style={{ ...S.input, paddingRight: 44 }} type={showPass ? 'text' : 'password'}
+              placeholder="••••••••" value={password}
+              onChange={e => { setPassword(e.target.value); setError('') }}
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
+            <button onClick={() => setShowPass(v => !v)}
+              style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#aaa' }}>
+              {showPass ? '🙈' : '👁️'}
+            </button>
+          </div>
+        </div>
+ 
+        {isSignUp && (
+          <div style={S.field}>
+            <label style={S.label}>{t.confirmPassword}</label>
+            <input style={S.input} type="password" placeholder="••••••••" value={confirm}
+              onChange={e => { setConfirm(e.target.value); setError('') }}
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
+          </div>
+        )}
+ 
+        {error && <div style={{ background: '#FFF0F0', border: '0.5px solid #F7C1C1', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#A32D2D' }}>{error}</div>}
+ 
+        <button onClick={handleSubmit} style={{ ...S.btnActive, width: '100%', padding: '13px', fontSize: 15, borderRadius: 12 }}>
+          {isSignUp ? t.createAccount : t.signIn} →
+        </button>
+ 
+        <p style={{ textAlign: 'center', fontSize: 12, color: '#888', marginTop: 16 }}>
+          {isSignUp ? t.alreadyHaveAccount : t.noAccount}
+          <button onClick={() => { setIsSignUp(v => !v); setError('') }}
+            style={{ background: 'none', border: 'none', color: '#1D9E75', cursor: 'pointer', fontSize: 12, fontWeight: 500, marginLeft: 4 }}>
+            {isSignUp ? t.signIn : t.createAccount}
+          </button>
+        </p>
+      </div>
+    </div>
+  )
 }
  
-// ─── COMPONENTS ───────────────────────────────────────────────────────────────
- 
+// ─── LANGUAGE PICKER ──────────────────────────────────────────────────────────
 function LanguagePicker({ onSelect }) {
   return (
     <div style={S.setupWrap}>
       <div style={S.setupCard}>
         <div style={S.emoji}>🌐</div>
         <h1 style={S.setupTitle}>Choose your language</h1>
-        <p style={S.setupSub}>ભાષા · भाषा · மொழி · భాష · ಭಾಷೆ · ਭਾਸ਼ਾ</p>
+        <p style={S.setupSub}>ભાષા · भाषा · தமிழ் · తెలుగు · ಕನ್ನಡ · ਪੰਜਾਬੀ</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}>
           {LANG_OPTIONS.map(l => (
             <button key={l.code} onClick={() => onSelect(l.code)}
@@ -385,20 +528,174 @@ function LanguagePicker({ onSelect }) {
   )
 }
  
-function Setup({ onComplete, lang }) {
-  const t = LANGUAGES[lang]
-  const [step, setStep] = useState(0)
-  const [name, setName] = useState('')
-  const [goals, setGoals] = useState({ calories: '', protein: '', carbs: '', sugar: '', fat: '', fiber: '' })
+// ─── BODY PROFILE STEP ────────────────────────────────────────────────────────
+function BodyProfileStep({ lang, onComplete, onBack }) {
+  const t = LANGUAGES[lang] || LANGUAGES.en
+  const [age, setAge] = useState('')
+  const [weight, setWeight] = useState('')
+  const [height, setHeight] = useState('')
+  const [activity, setActivity] = useState('moderatelyActive')
+  const [fitnessGoal, setFitnessGoal] = useState('maintain')
+ 
+  const bmi = weight && height ? calcBMI(Number(weight), Number(height)) : null
+  const bmiInfo = bmi ? bmiCategory(bmi, t) : null
+  const valid = age && weight && height && Number(age) > 0 && Number(weight) > 0 && Number(height) > 0
+ 
+  const ACTIVITY_OPTIONS = [
+    { key: 'sedentary', label: t.sedentary },
+    { key: 'lightlyActive', label: t.lightlyActive },
+    { key: 'moderatelyActive', label: t.moderatelyActive },
+    { key: 'veryActive', label: t.veryActive },
+    { key: 'superActive', label: t.superActive },
+  ]
+ 
+  const GOAL_OPTIONS = [
+    { key: 'lose', label: t.goal_lose, emoji: '📉' },
+    { key: 'maintain', label: t.goal_maintain, emoji: '⚖️' },
+    { key: 'gain', label: t.goal_gain, emoji: '💪' },
+  ]
+ 
+  const handleNext = () => {
+    const tdee = calcTDEE(Number(age), Number(weight), Number(height), activity)
+    const macros = suggestMacros(tdee, fitnessGoal)
+    onComplete({ age: Number(age), weight: Number(weight), height: Number(height), activity, fitnessGoal, tdee, bmi }, macros)
+  }
+ 
+  return (
+    <div style={S.setupWrap}>
+      <div style={{ ...S.setupCard, maxWidth: 440 }}>
+        <div style={S.emoji}>📊</div>
+        <h1 style={S.setupTitle}>{t.bodyProfile}</h1>
+        <p style={S.setupSub}>{t.bodyProfileSub}</p>
+ 
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
+          {[
+            { label: `${t.age} (${t.years})`, val: age, set: setAge, ph: '25', max: 100 },
+            { label: `${t.weight} (${t.kg})`, val: weight, set: setWeight, ph: '65', max: 300 },
+            { label: `${t.height} (${t.cm})`, val: height, set: setHeight, ph: '162', max: 250 },
+          ].map(f => (
+            <div key={f.label}>
+              <label style={{ ...S.label, fontSize: 11 }}>{f.label}</label>
+              <input style={{ ...S.input, textAlign: 'center', padding: '10px 8px' }} type="number"
+                placeholder={f.ph} value={f.val}
+                onChange={e => f.set(Math.min(Number(e.target.value), f.max) || e.target.value === '' ? e.target.value : f.val)} />
+            </div>
+          ))}
+        </div>
+ 
+        {/* BMI Preview */}
+        {bmi && (
+          <div style={{ background: bmiInfo.color + '15', border: `0.5px solid ${bmiInfo.color}55`, borderRadius: 12, padding: '10px 14px', marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 11, color: '#888' }}>{t.bmi}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: bmiInfo.color }}>{bmiInfo.label}</div>
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: bmiInfo.color }}>{bmi}</div>
+          </div>
+        )}
+ 
+        <div style={S.field}>
+          <label style={S.label}>{t.activityLevel}</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {ACTIVITY_OPTIONS.map(opt => (
+              <button key={opt.key} onClick={() => setActivity(opt.key)}
+                style={{ padding: '10px 14px', borderRadius: 10, border: '0.5px solid', textAlign: 'left', fontSize: 13, cursor: 'pointer', borderColor: activity === opt.key ? '#1D9E75' : '#ddd', background: activity === opt.key ? '#E1F5EE' : '#fff', color: activity === opt.key ? '#1D9E75' : '#555', fontWeight: activity === opt.key ? 500 : 400 }}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+ 
+        <div style={S.field}>
+          <label style={S.label}>{t.fitnessGoal}</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {GOAL_OPTIONS.map(opt => (
+              <button key={opt.key} onClick={() => setFitnessGoal(opt.key)}
+                style={{ flex: 1, padding: '10px 8px', borderRadius: 10, border: '0.5px solid', fontSize: 13, cursor: 'pointer', borderColor: fitnessGoal === opt.key ? '#1D9E75' : '#ddd', background: fitnessGoal === opt.key ? '#E1F5EE' : '#fff', color: fitnessGoal === opt.key ? '#1D9E75' : '#555' }}>
+                {opt.emoji}<br /><span style={{ fontSize: 11 }}>{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+ 
+        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+          <button style={S.btnBack} onClick={onBack}>{t.backBtn}</button>
+          <button style={valid ? S.btnActive : S.btnDisabled} onClick={handleNext} disabled={!valid}>
+            {t.continueBtn}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+ 
+// ─── GOALS REVIEW STEP ────────────────────────────────────────────────────────
+function GoalsReviewStep({ lang, suggestedGoals, bodyData, onComplete, onBack }) {
+  const t = LANGUAGES[lang] || LANGUAGES.en
+  const [goals, setGoals] = useState(suggestedGoals)
   const updateGoal = (k, v) => {
-    // Clamp to sensible maximums so nobody enters protein: 9999
     const maxes = { calories: 5000, protein: 300, carbs: 600, sugar: 200, fat: 200, fiber: 100 }
     const clamped = Math.min(Number(v), maxes[k] || 500)
-    setGoals(g => ({ ...g, [k]: clamped === 0 && v === '' ? '' : clamped }))
+    setGoals(g => ({ ...g, [k]: isNaN(clamped) ? '' : clamped }))
   }
-  const goalsValid = Object.values(goals).every(v => v !== '' && Number(v) > 0)
  
-  if (step === 0) return (
+  const tdee = bodyData?.tdee || 0
+ 
+  return (
+    <div style={S.setupWrap}>
+      <div style={{ ...S.setupCard, maxWidth: 440 }}>
+        <div style={S.emoji}>🎯</div>
+        <h1 style={S.setupTitle}>{t.setGoals}</h1>
+        <p style={S.setupSub}>{t.goalsSub}</p>
+ 
+        {/* TDEE info box */}
+        {tdee > 0 && (
+          <div style={{ background: '#E1F5EE', border: '0.5px solid #9FE1CB', borderRadius: 12, padding: '12px 14px', marginBottom: 20 }}>
+            <div style={{ fontSize: 12, color: '#085041', marginBottom: 4 }}>📊 {t.tdee}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#0F6E56' }}>{tdee} <span style={{ fontSize: 13, fontWeight: 400 }}>kcal/day</span></div>
+            <div style={{ fontSize: 12, color: '#1D9E75', marginTop: 4 }}>
+              {bodyData.fitnessGoal === 'lose' && '📉 Set to 80% of TDEE for weight loss'}
+              {bodyData.fitnessGoal === 'maintain' && '⚖️ Set to match your TDEE'}
+              {bodyData.fitnessGoal === 'gain' && '💪 Set to 110% of TDEE for muscle gain'}
+            </div>
+          </div>
+        )}
+ 
+        {[
+          { key: 'calories', label: t.calories, unit: 'kcal' },
+          { key: 'protein', label: t.protein, unit: 'g' },
+          { key: 'carbs', label: t.carbs, unit: 'g' },
+          { key: 'sugar', label: t.sugar, unit: 'g' },
+          { key: 'fat', label: t.fat, unit: 'g' },
+          { key: 'fiber', label: t.fiber, unit: 'g' },
+        ].map(({ key, label, unit }) => (
+          <div key={key} style={{ ...S.field, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <label style={{ ...S.label, flex: 1, margin: 0 }}>{label} <span style={{ color: '#aaa', fontWeight: 400 }}>({unit})</span></label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => updateGoal(key, (goals[key] || 0) - (key === 'calories' ? 50 : 5))}
+                style={{ ...S.qtyBtn, width: 30, height: 30, fontSize: 16 }}>−</button>
+              <input style={{ ...S.input, width: 72, textAlign: 'center', padding: '8px 6px' }} type="number"
+                value={goals[key]} onChange={e => updateGoal(key, e.target.value)} />
+              <button onClick={() => updateGoal(key, (goals[key] || 0) + (key === 'calories' ? 50 : 5))}
+                style={{ ...S.qtyBtn, width: 30, height: 30, fontSize: 16 }}>+</button>
+            </div>
+          </div>
+        ))}
+ 
+        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+          <button style={S.btnBack} onClick={onBack}>{t.backBtn}</button>
+          <button style={S.btnActive} onClick={() => onComplete(goals)}>{t.startBtn}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+ 
+// ─── SETUP (name only now) ────────────────────────────────────────────────────
+function NameStep({ lang, onComplete, onBack }) {
+  const t = LANGUAGES[lang] || LANGUAGES.en
+  const [name, setName] = useState('')
+  return (
     <div style={S.setupWrap}>
       <div style={S.setupCard}>
         <div style={S.emoji}>🥗</div>
@@ -408,44 +705,20 @@ function Setup({ onComplete, lang }) {
           <label style={S.label}>{t.whatsYourName}</label>
           <input style={S.input} placeholder={t.namePlaceholder} value={name}
             onChange={e => setName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && name.trim() && setStep(1)} autoFocus />
+            onKeyDown={e => e.key === 'Enter' && name.trim() && onComplete(name.trim())} autoFocus />
         </div>
-        <button style={name.trim() ? S.btnActive : S.btnDisabled} onClick={() => name.trim() && setStep(1)}>{t.continueBtn}</button>
-      </div>
-    </div>
-  )
- 
-  return (
-    <div style={S.setupWrap}>
-      <div style={S.setupCard}>
-        <div style={S.emoji}>🎯</div>
-        <h1 style={S.setupTitle}>{t.setGoals}</h1>
-        <p style={S.setupSub}>{t.goalsSub}</p>
-        {[
-          { key: 'calories', label: t.calories, unit: 'kcal', ph: '1800' },
-          { key: 'protein', label: t.protein, unit: 'g', ph: '80' },
-          { key: 'carbs', label: t.carbs, unit: 'g', ph: '200' },
-          { key: 'sugar', label: t.sugar, unit: 'g', ph: '30' },
-          { key: 'fat', label: t.fat, unit: 'g', ph: '50' },
-          { key: 'fiber', label: t.fiber, unit: 'g', ph: '25' },
-        ].map(({ key, label, unit, ph }) => (
-          <div key={key} style={S.field}>
-            <label style={S.label}>{label} <span style={{ color: '#aaa' }}>({unit})</span></label>
-            <input style={S.input} type="number" placeholder={ph} value={goals[key]} onChange={e => updateGoal(key, e.target.value)} />
-          </div>
-        ))}
-        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-          <button style={S.btnBack} onClick={() => setStep(0)}>{t.backBtn}</button>
-          <button style={goalsValid ? S.btnActive : S.btnDisabled}
-            onClick={() => goalsValid && onComplete(name.trim(), goals)}>{t.startBtn}</button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button style={S.btnBack} onClick={onBack}>{t.backBtn}</button>
+          <button style={name.trim() ? S.btnActive : S.btnDisabled} onClick={() => name.trim() && onComplete(name.trim())}>{t.continueBtn}</button>
         </div>
       </div>
     </div>
   )
 }
  
+// ─── ADD FOOD MODAL ───────────────────────────────────────────────────────────
 function AddFoodModal({ food, onConfirm, onCancel, lang }) {
-  const t = LANGUAGES[lang]
+  const t = LANGUAGES[lang] || LANGUAGES.en
   const [qty, setQty] = useState(1)
   const [meal, setMeal] = useState('')
   const preview = useMemo(() => scaleFood(food, qty), [food, qty])
@@ -456,7 +729,8 @@ function AddFoodModal({ food, onConfirm, onCancel, lang }) {
       <div style={S.modalCard}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
           <h2 style={{ fontSize: 18, fontWeight: 600, flex: 1, marginRight: 8 }}>{food.name}</h2>
-          {food.source === 'USDA' && <span style={{ fontSize: 11, background: '#E6F1FB', color: '#185FA5', padding: '3px 8px', borderRadius: 8, flexShrink: 0 }}>USDA</span>}
+          {food.source === 'USDA' && <span style={{ fontSize: 11, background: '#E6F1FB', color: '#185FA5', padding: '3px 8px', borderRadius: 8 }}>USDA</span>}
+          {food.source === 'BARCODE' && <span style={{ fontSize: 11, background: '#E1F5EE', color: '#1D9E75', padding: '3px 8px', borderRadius: 8 }}>Scanned</span>}
         </div>
         <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>{food.portion}</p>
  
@@ -508,16 +782,342 @@ function AddFoodModal({ food, onConfirm, onCancel, lang }) {
   )
 }
  
+// ─── BARCODE SCANNER ─────────────────────────────────────────────────────────
+function BarcodeScanner({ lang, onFound, onClose }) {
+  const t = LANGUAGES[lang] || LANGUAGES.en
+  const videoRef = useRef(null)
+  const [status, setStatus] = useState('starting') // starting | scanning | error | notfound
+  const [stream, setStream] = useState(null)
+  const intervalRef = useRef(null)
+ 
+  // Load ZXing from CDN
+  useEffect(() => {
+    let mounted = true
+    const startCamera = async () => {
+      try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        })
+        if (!mounted) { mediaStream.getTracks().forEach(t => t.stop()); return }
+        setStream(mediaStream)
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream
+          await videoRef.current.play()
+        }
+        setStatus('scanning')
+ 
+        // Use BarcodeDetector API if available (Chrome/Android)
+        if ('BarcodeDetector' in window) {
+          const detector = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] })
+          intervalRef.current = setInterval(async () => {
+            if (!videoRef.current || videoRef.current.readyState < 2) return
+            try {
+              const codes = await detector.detect(videoRef.current)
+              if (codes.length > 0) {
+                clearInterval(intervalRef.current)
+                await lookupBarcode(codes[0].rawValue, mounted)
+              }
+            } catch {}
+          }, 500)
+        } else {
+          // Fallback: prompt manual entry
+          setStatus('manual')
+        }
+      } catch (e) {
+        if (mounted) setStatus('error')
+      }
+    }
+    startCamera()
+    return () => {
+      mounted = false
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      if (stream) stream.getTracks().forEach(t => t.stop())
+    }
+  }, [])
+ 
+  const stopStream = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    if (stream) stream.getTracks().forEach(t => t.stop())
+    onClose()
+  }
+ 
+  const lookupBarcode = async (barcode, mounted = true) => {
+    setStatus('loading')
+    try {
+      const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`)
+      const data = await res.json()
+      if (data.status === 1 && mounted) {
+        const p = data.product
+        const nutriments = p.nutriments || {}
+        const food = {
+          name: p.product_name || p.product_name_en || 'Unknown Product',
+          portion: `100g`,
+          calories: Math.round(nutriments['energy-kcal_100g'] || nutriments['energy-kcal'] || 0),
+          protein: Math.round((nutriments.proteins_100g || 0) * 10) / 10,
+          carbs: Math.round((nutriments.carbohydrates_100g || 0) * 10) / 10,
+          fat: Math.round((nutriments.fat_100g || 0) * 10) / 10,
+          fiber: Math.round((nutriments.fiber_100g || 0) * 10) / 10,
+          gi: 'Unknown',
+          source: 'BARCODE',
+        }
+        if (stream) stream.getTracks().forEach(t => t.stop())
+        onFound(food)
+      } else if (mounted) {
+        setStatus('notfound')
+      }
+    } catch {
+      if (mounted) setStatus('error')
+    }
+  }
+ 
+  const [manualBarcode, setManualBarcode] = useState('')
+ 
+  return (
+    <div style={S.modalOverlay}>
+      <div style={{ ...S.modalCard, padding: 0, overflow: 'hidden' }}>
+        {/* Video viewfinder */}
+        <div style={{ position: 'relative', background: '#000', aspectRatio: '4/3' }}>
+          <video ref={videoRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} playsInline muted />
+          {/* Scanning overlay */}
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+            <div style={{ width: '70%', aspectRatio: '2/1', border: '2px solid #1D9E75', borderRadius: 8, boxShadow: '0 0 0 9999px rgba(0,0,0,0.4)' }} />
+          </div>
+          <button onClick={stopStream}
+            style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', borderRadius: 20, padding: '6px 14px', fontSize: 13, cursor: 'pointer' }}>
+            ✕ {t.stopScan}
+          </button>
+        </div>
+ 
+        <div style={{ padding: '16px 20px' }}>
+          {status === 'starting' && <p style={{ textAlign: 'center', color: '#888', fontSize: 14 }}>Starting camera...</p>}
+          {status === 'scanning' && <p style={{ textAlign: 'center', color: '#1D9E75', fontSize: 14 }}>📷 {t.scanning} — point at a barcode</p>}
+          {status === 'loading' && <p style={{ textAlign: 'center', color: '#378ADD', fontSize: 14 }}>Looking up product...</p>}
+          {status === 'error' && <p style={{ textAlign: 'center', color: '#E24B4A', fontSize: 14 }}>{t.barcodeError}</p>}
+          {status === 'notfound' && <p style={{ textAlign: 'center', color: '#EF9F27', fontSize: 14 }}>{t.barcodeNotFound}</p>}
+ 
+          {/* Manual barcode entry fallback */}
+          {(status === 'manual' || status === 'error' || status === 'notfound') && (
+            <div style={{ marginTop: 12 }}>
+              <p style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>Or enter barcode manually:</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input style={{ ...S.input, flex: 1 }} type="number" placeholder="e.g. 8901030870115"
+                  value={manualBarcode} onChange={e => setManualBarcode(e.target.value)} />
+                <button onClick={() => manualBarcode && lookupBarcode(manualBarcode)}
+                  style={{ ...S.btnActive, padding: '10px 16px', whiteSpace: 'nowrap' }}>Look up</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+ 
+// ─── RECIPE BUILDER ───────────────────────────────────────────────────────────
+function RecipeBuilder({ lang, onClose }) {
+  const { state, dispatch } = useApp()
+  const t = LANGUAGES[lang] || LANGUAGES.en
+  const [view, setView] = useState('list') // 'list' | 'create'
+  const [recipeName, setRecipeName] = useState('')
+  const [ingredients, setIngredients] = useState([])
+  const [search, setSearch] = useState('')
+  const [pending, setPending] = useState(null)
+ 
+  const filtered = useMemo(() => {
+    if (!search) return []
+    const q = search.toLowerCase()
+    return LOCAL_FOODS.filter(f => f.name.toLowerCase().includes(q)).slice(0, 6)
+  }, [search])
+ 
+  const totals = useMemo(() => ingredients.reduce((acc, ing) => ({
+    calories: acc.calories + ing.calories,
+    protein: acc.protein + ing.protein,
+    carbs: acc.carbs + ing.carbs,
+    fat: acc.fat + ing.fat,
+    fiber: acc.fiber + ing.fiber,
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }), [ingredients])
+ 
+  const addIngredient = (food, qty) => {
+    setIngredients(prev => [...prev, { ...scaleFood(food, qty), qty }])
+    setSearch('')
+    setPending(null)
+  }
+ 
+  const saveRecipe = () => {
+    if (!recipeName.trim() || ingredients.length === 0) return
+    const recipe = {
+      id: Date.now().toString(),
+      name: recipeName.trim(),
+      ingredients,
+      totals,
+      portion: `1 serving (${ingredients.length} items)`,
+    }
+    dispatch({ type: 'SAVE_RECIPE', recipe })
+    setView('list')
+    setRecipeName('')
+    setIngredients([])
+  }
+ 
+  const { dispatch: d2, state: s2 } = useApp()
+  const logRecipe = (recipe, meal) => {
+    d2({ type: 'ADD_FOOD', food: { ...recipe.totals, name: recipe.name, portion: recipe.portion, meal, gi: 'Mixed', source: 'RECIPE' } })
+    onClose()
+  }
+ 
+  return (
+    <div style={S.modalOverlay}>
+      <div style={{ ...S.modalCard, maxWidth: 480 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setView('list')}
+              style={{ fontSize: 13, padding: '6px 14px', borderRadius: 20, border: '0.5px solid', borderColor: view === 'list' ? '#1D9E75' : '#ddd', background: view === 'list' ? '#E1F5EE' : '#fff', color: view === 'list' ? '#1D9E75' : '#555', cursor: 'pointer' }}>
+              🍽️ {t.myRecipes}
+            </button>
+            <button onClick={() => setView('create')}
+              style={{ fontSize: 13, padding: '6px 14px', borderRadius: 20, border: '0.5px solid', borderColor: view === 'create' ? '#1D9E75' : '#ddd', background: view === 'create' ? '#E1F5EE' : '#fff', color: view === 'create' ? '#1D9E75' : '#555', cursor: 'pointer' }}>
+              ➕ {t.createRecipe}
+            </button>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#aaa' }}>×</button>
+        </div>
+ 
+        {/* My Recipes List */}
+        {view === 'list' && (
+          <>
+            {state.recipes.length === 0 && <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb' }}>{t.noRecipes}</div>}
+            {state.recipes.map(recipe => (
+              <div key={recipe.id} style={{ border: '0.5px solid #e5e5e5', borderRadius: 12, padding: '14px', marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>{recipe.name}</div>
+                    <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{recipe.ingredients.length} ingredients · {Math.round(recipe.totals.calories)} kcal</div>
+                  </div>
+                  <button onClick={() => dispatch({ type: 'DELETE_RECIPE', id: recipe.id })}
+                    style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 18 }}>×</button>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                  {[
+                    { label: 'Protein', val: Math.round(recipe.totals.protein), color: '#1D9E75' },
+                    { label: 'Carbs', val: Math.round(recipe.totals.carbs), color: '#378ADD' },
+                    { label: 'Fat', val: Math.round(recipe.totals.fat), color: '#EF9F27' },
+                    { label: 'Fiber', val: Math.round(recipe.totals.fiber), color: '#639922' },
+                  ].map(m => (
+                    <span key={m.label} style={{ fontSize: 12, background: m.color + '18', color: m.color, padding: '3px 10px', borderRadius: 20 }}>{m.val}g {m.label}</span>
+                  ))}
+                </div>
+                {/* Quick log buttons */}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {getMeals(t).map(m => (
+                    <button key={m.key} onClick={() => logRecipe(recipe, m.key)}
+                      style={{ fontSize: 11, padding: '5px 10px', borderRadius: 20, border: '0.5px solid #ddd', background: '#f9f9f9', cursor: 'pointer', color: '#555' }}>
+                      {m.emoji} {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+ 
+        {/* Create Recipe */}
+        {view === 'create' && (
+          <>
+            <div style={S.field}>
+              <label style={S.label}>{t.recipeName}</label>
+              <input style={S.input} placeholder="e.g. Dal Chawal" value={recipeName} onChange={e => setRecipeName(e.target.value)} />
+            </div>
+ 
+            {/* Ingredient search */}
+            <label style={S.label}>{t.addIngredient}</label>
+            <input style={{ ...S.input, marginBottom: 8 }} placeholder={t.searchPlaceholder} value={search}
+              onChange={e => setSearch(e.target.value)} />
+            {filtered.length > 0 && (
+              <div style={{ border: '0.5px solid #e5e5e5', borderRadius: 10, overflow: 'hidden', marginBottom: 12 }}>
+                {filtered.map(food => (
+                  <div key={food.id} onClick={() => setPending(food)}
+                    style={{ padding: '10px 14px', borderBottom: '0.5px solid #f0f0f0', cursor: 'pointer', fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{food.name}</span>
+                    <span style={{ color: '#888' }}>{food.calories} kcal</span>
+                  </div>
+                ))}
+              </div>
+            )}
+ 
+            {/* Qty picker for ingredient */}
+            {pending && (
+              <div style={{ background: '#E1F5EE', borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 8 }}>{pending.name}</div>
+                <InlineQtyPicker food={pending} onAdd={addIngredient} onCancel={() => setPending(null)} t={t} />
+              </div>
+            )}
+ 
+            {/* Ingredients list */}
+            {ingredients.length > 0 && (
+              <>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>INGREDIENTS</div>
+                {ingredients.map((ing, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '0.5px solid #f0f0f0', fontSize: 13 }}>
+                    <span>{ing.name} <span style={{ color: '#aaa' }}>×{ing.qty}</span></span>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <span style={{ color: '#888' }}>{ing.calories} kcal</span>
+                      <button onClick={() => setIngredients(prev => prev.filter((_, j) => j !== i))}
+                        style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 16 }}>×</button>
+                    </div>
+                  </div>
+                ))}
+                <div style={{ background: '#f9f9f9', borderRadius: 10, padding: '10px 14px', marginTop: 10, marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>RECIPE TOTAL</div>
+                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Cal', val: Math.round(totals.calories), color: '#555' },
+                      { label: 'Pro', val: `${Math.round(totals.protein)}g`, color: '#1D9E75' },
+                      { label: 'Carb', val: `${Math.round(totals.carbs)}g`, color: '#378ADD' },
+                      { label: 'Fat', val: `${Math.round(totals.fat)}g`, color: '#EF9F27' },
+                    ].map(m => (
+                      <div key={m.label} style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: m.color }}>{m.val}</div>
+                        <div style={{ fontSize: 10, color: '#aaa' }}>{m.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+ 
+            <button onClick={saveRecipe}
+              style={recipeName.trim() && ingredients.length > 0 ? { ...S.btnActive, width: '100%' } : { ...S.btnDisabled, width: '100%' }}>
+              💾 {t.saveRecipe}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+ 
+function InlineQtyPicker({ food, onAdd, onCancel, t }) {
+  const [qty, setQty] = useState(1)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <button onClick={() => setQty(q => Math.max(0.5, parseFloat((q - 0.5).toFixed(1))))} style={S.qtyBtn}>−</button>
+      <span style={{ fontSize: 18, fontWeight: 600, minWidth: 28, textAlign: 'center' }}>{qty}</span>
+      <button onClick={() => setQty(q => parseFloat((q + 0.5).toFixed(1)))} style={S.qtyBtn}>+</button>
+      <span style={{ fontSize: 12, color: '#aaa', flex: 1 }}>× {food.portion}</span>
+      <button onClick={() => onAdd(food, qty)} style={{ ...S.btnActive, padding: '8px 14px', fontSize: 13 }}>Add</button>
+      <button onClick={onCancel} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: 18 }}>×</button>
+    </div>
+  )
+}
+ 
+// ─── JOURNAL VIEW ─────────────────────────────────────────────────────────────
 function JournalView({ onClose, lang }) {
   const { state } = useApp()
-  const t = LANGUAGES[lang]
+  const t = LANGUAGES[lang] || LANGUAGES.en
   const [selected, setSelected] = useState(null)
-  const [view, setView] = useState('list') // 'list' | 'analytics'
+  const [view, setView] = useState('list')
  
   const entries = useMemo(() =>
-    Object.entries(state.journal).sort((a, b) => b[0].localeCompare(a[0])),
-    [state.journal]
-  )
+    Object.entries(state.journal).sort((a, b) => b[0].localeCompare(a[0])), [state.journal])
  
   const analytics = useMemo(() => {
     if (entries.length < 2) return null
@@ -536,24 +1136,19 @@ function JournalView({ onClose, lang }) {
       <div style={{ ...S.modalCard, maxWidth: 500 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => { setView('list'); setSelected(null) }}
-              style={{ fontSize: 13, padding: '6px 14px', borderRadius: 20, border: '0.5px solid', borderColor: view === 'list' ? '#1D9E75' : '#ddd', background: view === 'list' ? '#E1F5EE' : '#fff', color: view === 'list' ? '#1D9E75' : '#555', cursor: 'pointer' }}>
-              📓 {t.journal}
-            </button>
-            <button onClick={() => { setView('analytics'); setSelected(null) }}
-              style={{ fontSize: 13, padding: '6px 14px', borderRadius: 20, border: '0.5px solid', borderColor: view === 'analytics' ? '#1D9E75' : '#ddd', background: view === 'analytics' ? '#E1F5EE' : '#fff', color: view === 'analytics' ? '#1D9E75' : '#555', cursor: 'pointer' }}>
-              📊 {t.weeklyAnalytics}
-            </button>
+            {[{ key: 'list', label: `📓 ${t.journal}` }, { key: 'analytics', label: `📊 ${t.weeklyAnalytics}` }].map(tab => (
+              <button key={tab.key} onClick={() => { setView(tab.key); setSelected(null) }}
+                style={{ fontSize: 13, padding: '6px 14px', borderRadius: 20, border: '0.5px solid', borderColor: view === tab.key ? '#1D9E75' : '#ddd', background: view === tab.key ? '#E1F5EE' : '#fff', color: view === tab.key ? '#1D9E75' : '#555', cursor: 'pointer' }}>
+                {tab.label}
+              </button>
+            ))}
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#aaa' }}>×</button>
         </div>
  
-        {/* Analytics view */}
         {view === 'analytics' && (
           <div>
-            {!analytics ? (
-              <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb' }}>{t.analyticsEmpty}</div>
-            ) : (
+            {!analytics ? <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb' }}>{t.analyticsEmpty}</div> : (
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 20 }}>
                   {[
@@ -567,8 +1162,6 @@ function JournalView({ onClose, lang }) {
                     </div>
                   ))}
                 </div>
-                <div style={{ fontSize: 13, color: '#555', marginBottom: 10 }}>{t.bestDay}: <strong>{fmtDate(analytics.bestDay)}</strong> ({state.journal[analytics.bestDay]?.rating}/10)</div>
-                {/* Mini bar chart */}
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>RATING HISTORY</div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 60 }}>
                   {entries.slice(0, 14).reverse().map(([key, day]) => (
@@ -583,7 +1176,6 @@ function JournalView({ onClose, lang }) {
           </div>
         )}
  
-        {/* List view */}
         {view === 'list' && !selected && (
           <>
             {entries.length === 0 && <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb' }}>{t.noSavedDays}</div>}
@@ -595,7 +1187,7 @@ function JournalView({ onClose, lang }) {
                   <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{day.log?.length || 0} items · {day.totals?.calories || 0} kcal · 💧{day.water || 0}</div>
                   {day.note && <div style={{ fontSize: 12, color: '#aaa', marginTop: 2, fontStyle: 'italic' }}>"{day.note}"</div>}
                 </div>
-                <div style={{ width: 40, height: 40, borderRadius: 20, background: ratingBg(day.rating), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 20, background: ratingBg(day.rating), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{day.rating}</span>
                 </div>
               </div>
@@ -603,7 +1195,6 @@ function JournalView({ onClose, lang }) {
           </>
         )}
  
-        {/* Day detail */}
         {view === 'list' && selected && (() => {
           const day = state.journal[selected]
           return (
@@ -612,32 +1203,15 @@ function JournalView({ onClose, lang }) {
               <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 8 }}>{fmtDate(selected)}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                 <span style={{ fontSize: 32, fontWeight: 700, color: ratingBg(day.rating) }}>{day.rating}</span>
-                <span style={{ fontSize: 13, color: '#888' }}>/10 · {day.totals?.calories || 0} kcal · 💧{day.water || 0} glasses</span>
+                <span style={{ fontSize: 13, color: '#888' }}>/10 · {day.totals?.calories || 0} kcal · 💧{day.water || 0}</span>
               </div>
               {day.note && <div style={{ background: '#f9f9f9', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#555', fontStyle: 'italic' }}>"{day.note}"</div>}
-              {/* Score breakdown */}
               {day.ratingReasons && (
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>SCORE BREAKDOWN</div>
-                  {day.ratingReasons.map((r, i) => (
-                    <div key={i} style={{ fontSize: 13, color: r.color, padding: '2px 0' }}>{r.text}</div>
-                  ))}
+                  {day.ratingReasons.map((r, i) => <div key={i} style={{ fontSize: 13, color: r.color, padding: '2px 0' }}>{r.text}</div>)}
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
-                {[
-                  { label: 'Protein', val: day.totals?.protein, color: '#1D9E75' },
-                  { label: 'Carbs', val: day.totals?.carbs, color: '#378ADD' },
-                  { label: 'Fat', val: day.totals?.fat, color: '#EF9F27' },
-                  { label: 'Fiber', val: day.totals?.fiber, color: '#639922' },
-                ].map(m => (
-                  <div key={m.label} style={{ background: '#f9f9f9', borderRadius: 10, padding: '10px 12px' }}>
-                    <div style={{ fontSize: 11, color: '#888' }}>{m.label}</div>
-                    <div style={{ fontSize: 18, fontWeight: 600, color: m.color }}>{Math.round(m.val || 0)}g</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>FOODS EATEN</div>
               {(day.log || []).map((item, i) => (
                 <div key={i} style={{ fontSize: 13, padding: '6px 0', borderBottom: '0.5px solid #f5f5f5', display: 'flex', justifyContent: 'space-between' }}>
                   <span>{item.name} <span style={{ color: '#aaa' }}>({item.meal})</span></span>
@@ -652,10 +1226,11 @@ function JournalView({ onClose, lang }) {
   )
 }
  
+// ─── FOOD ROW ─────────────────────────────────────────────────────────────────
 function FoodRow({ food, onClick }) {
   return (
     <div onClick={onClick}
-      style={{ padding: '11px 14px', borderBottom: '0.5px solid #f0f0f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
+      style={{ padding: '11px 14px', borderBottom: '0.5px solid #f0f0f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <div style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
         <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{food.name}</div>
         <div style={{ fontSize: 12, color: '#888' }}>{food.portion} · {food.calories} kcal</div>
@@ -673,7 +1248,7 @@ function FoodRow({ food, onClick }) {
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 function AppInner() {
   const { state, dispatch, lang, user, goals } = useApp()
-  const t = LANGUAGES[lang]
+  const t = LANGUAGES[lang] || LANGUAGES.en
   const MEALS = useMemo(() => getMeals(t), [t])
  
   const [search, setSearch] = useState('')
@@ -684,11 +1259,12 @@ function AppInner() {
   const [showJournal, setShowJournal] = useState(false)
   const [showBreakdown, setShowBreakdown] = useState(false)
   const [showAI, setShowAI] = useState(false)
+  const [showRecipes, setShowRecipes] = useState(false)
+  const [showBarcode, setShowBarcode] = useState(false)
   const [tip] = useState(() => HEALTH_TIPS[Math.floor(Math.random() * HEALTH_TIPS.length)])
   const [showTip, setShowTip] = useState(true)
   const [saveFeedback, setSaveFeedback] = useState('')
  
-  // useMemo for all derived state — no recompute on keystrokes
   const totals = useMemo(() => state.log.reduce((acc, item) => ({
     calories: acc.calories + item.calories,
     protein: acc.protein + item.protein,
@@ -699,76 +1275,56 @@ function AppInner() {
  
   const { rating, reasons } = useMemo(() =>
     state.log.length > 0 ? calcRatingWithBreakdown(totals, goals) : { rating: null, reasons: [] },
-    [totals, goals, state.log.length]
-  )
+    [totals, goals, state.log.length])
  
   const rl = useMemo(() => rating ? ratingLabel(rating, t) : null, [rating, t])
  
   const mealGroups = useMemo(() =>
     MEALS.map(m => ({ ...m, items: state.log.filter(i => i.meal === m.key) })).filter(m => m.items.length > 0),
-    [state.log, MEALS]
-  )
+    [state.log, MEALS])
  
   const warnings = useMemo(() => [
     totals.protein > goals.protein && `${t.protein} ${t.exceeded} (${Math.round(totals.protein)}g / ${goals.protein}g)`,
     totals.carbs > goals.carbs && `${t.carbs} ${t.exceeded} (${Math.round(totals.carbs)}g / ${goals.carbs}g)`,
     totals.fat > goals.fat && `${t.fat} ${t.exceeded} (${Math.round(totals.fat)}g / ${goals.fat}g)`,
-    totals.fiber > goals.fiber && `${t.fiber} ${t.exceeded} (${Math.round(totals.fiber)}g / ${goals.fiber}g)`,
     totals.calories > goals.calories && `${t.calories} ${t.exceeded} (${Math.round(totals.calories)} / ${goals.calories} kcal)`,
   ].filter(Boolean), [totals, goals, t])
  
   const aiSuggestions = useMemo(() => getAISuggestions(totals, goals), [totals, goals])
   const streak = useMemo(() => calcStreak(state.journal), [state.journal])
+ 
   const localFiltered = useMemo(() => {
     if (!search) return []
     const q = search.toLowerCase().trim()
-    const words = q.split(' ').filter(Boolean)
-    return LOCAL_FOODS.filter(f => {
-      const name = f.name.toLowerCase()
-      // Match if ALL words appear somewhere in the name
-      return words.every(w => name.includes(w))
-    })
+    return LOCAL_FOODS.filter(f => q.split(' ').every(w => f.name.toLowerCase().includes(w)))
   }, [search])
  
-  // USDA with abort controller + proper error handling
   useEffect(() => {
     if (search.length < 3) { setUsdaResults([]); setUsdaError(false); return }
     const controller = new AbortController()
     const timer = setTimeout(async () => {
-      setUsdaLoading(true)
-      setUsdaError(false)
+      setUsdaLoading(true); setUsdaError(false)
       try {
         const results = await searchUSDA(search, controller.signal)
         setUsdaResults(results)
       } catch (e) {
-        if (e.name !== 'AbortError') {
-          setUsdaError(true)
-          setUsdaResults([])
-        }
-      } finally {
-        setUsdaLoading(false)
-      }
+        if (e.name !== 'AbortError') { setUsdaError(true); setUsdaResults([]) }
+      } finally { setUsdaLoading(false) }
     }, 600)
     return () => { clearTimeout(timer); controller.abort() }
   }, [search])
  
   const confirmAdd = useCallback((item) => {
     dispatch({ type: 'ADD_FOOD', food: item })
-    setPending(null)
-    setSearch('')
+    setPending(null); setSearch('')
   }, [dispatch])
  
-  const removeFood = useCallback((index) => {
-    dispatch({ type: 'REMOVE_FOOD', index })
-  }, [dispatch])
+  const removeFood = useCallback((index) => dispatch({ type: 'REMOVE_FOOD', index }), [dispatch])
  
   const saveDay = useCallback(() => {
     const key = todayKey()
     const alreadySaved = !!state.journal[key]
-    dispatch({
-      type: 'SAVE_DAY', key,
-      entry: { totals, log: state.log, rating, ratingReasons: reasons, note: state.dayNote, savedAt: new Date().toISOString(), water: state.waterGlasses }
-    })
+    dispatch({ type: 'SAVE_DAY', key, entry: { totals, log: state.log, rating, ratingReasons: reasons, note: state.dayNote, savedAt: new Date().toISOString(), water: state.waterGlasses } })
     setSaveFeedback(alreadySaved ? t.alreadySaved : t.daySaved)
     setTimeout(() => setSaveFeedback(''), 2500)
   }, [state, totals, rating, reasons, t, dispatch])
@@ -781,20 +1337,23 @@ function AppInner() {
   ], [totals, goals, t])
  
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 100px', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 110px', fontFamily: 'system-ui, sans-serif' }}>
       {pending && <AddFoodModal food={pending} onConfirm={confirmAdd} onCancel={() => setPending(null)} lang={lang} />}
       {showJournal && <JournalView onClose={() => setShowJournal(false)} lang={lang} />}
+      {showRecipes && <RecipeBuilder lang={lang} onClose={() => setShowRecipes(false)} />}
+      {showBarcode && <BarcodeScanner lang={lang} onFound={food => { setPending(food); setShowBarcode(false) }} onClose={() => setShowBarcode(false)} />}
  
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 2 }}>🥗 {t.appName}</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 2 }}>🥗 {t.appName}</h1>
           <p style={{ fontSize: 14, color: '#888' }}>
             {t.namaste}, {user}!
             {streak > 0 && <span style={{ marginLeft: 8, color: '#E24B4A' }}>🔥 {streak} {t.streak}</span>}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => setShowBarcode(true)} style={{ ...S.iconBtn, fontSize: 18, padding: '4px 8px' }} title={t.scanBarcode}>📷</button>
           <button onClick={() => window.location.reload()} style={S.iconBtn}>🌐</button>
           <button onClick={() => { localStorage.clear(); window.location.reload() }} style={S.iconBtn}>{t.editProfile}</button>
         </div>
@@ -805,7 +1364,7 @@ function AppInner() {
         <div style={{ background: '#E1F5EE', border: '0.5px solid #9FE1CB', borderRadius: 12, padding: '10px 14px', marginBottom: 14, display: 'flex', gap: 10 }}>
           <span style={{ fontSize: 14, flexShrink: 0 }}>💡</span>
           <div style={{ flex: 1, fontSize: 13, color: '#085041', lineHeight: 1.5 }}>{tip}</div>
-          <button onClick={() => setShowTip(false)} style={{ background: 'none', border: 'none', color: '#9FE1CB', cursor: 'pointer', fontSize: 16, padding: 0, flexShrink: 0 }}>×</button>
+          <button onClick={() => setShowTip(false)} style={{ background: 'none', border: 'none', color: '#9FE1CB', cursor: 'pointer', fontSize: 16, padding: 0 }}>×</button>
         </div>
       )}
  
@@ -822,7 +1381,6 @@ function AppInner() {
       )}
       {showBreakdown && reasons.length > 0 && (
         <div style={{ background: '#f9f9f9', borderRadius: 12, padding: '12px 16px', marginBottom: 14 }}>
-          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>SCORE BREAKDOWN</div>
           {reasons.map((r, i) => <div key={i} style={{ fontSize: 13, color: r.color, padding: '2px 0' }}>{r.text}</div>)}
         </div>
       )}
@@ -872,12 +1430,22 @@ function AppInner() {
       </div>
  
       {/* Warnings */}
-      {warnings.map(w => (
-        <div key={w} style={{ background: '#FCEBEB', border: '0.5px solid #F7C1C1', borderRadius: 12, padding: '10px 14px', marginBottom: 10, fontSize: 13, color: '#A32D2D' }}>🚨 {w}</div>
-      ))}
+      {warnings.map(w => <div key={w} style={{ background: '#FCEBEB', border: '0.5px solid #F7C1C1', borderRadius: 12, padding: '10px 14px', marginBottom: 10, fontSize: 13, color: '#A32D2D' }}>🚨 {w}</div>)}
       {totals.protein < goals.protein * 0.5 && state.log.length > 0 && (
         <div style={{ background: '#FAEEDA', border: '0.5px solid #FAC775', borderRadius: 12, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#854F0B' }}>{t.lowProtein}</div>
       )}
+ 
+      {/* Action buttons row */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <button onClick={() => setShowRecipes(true)}
+          style={{ flex: 1, padding: '10px 8px', borderRadius: 12, background: '#f9f9f9', border: '0.5px solid #e5e5e5', fontSize: 13, cursor: 'pointer', color: '#555', fontWeight: 500 }}>
+          🍽️ {t.recipeBuilder}
+        </button>
+        <button onClick={() => setShowBarcode(true)}
+          style={{ flex: 1, padding: '10px 8px', borderRadius: 12, background: '#f9f9f9', border: '0.5px solid #e5e5e5', fontSize: 13, cursor: 'pointer', color: '#555', fontWeight: 500 }}>
+          {t.scanBarcode}
+        </button>
+      </div>
  
       {/* AI Suggestions */}
       {state.log.length > 0 && (
@@ -888,12 +1456,11 @@ function AppInner() {
           </button>
           {showAI && (
             <div style={{ marginTop: 8, border: '0.5px solid #e5e5e5', borderRadius: 12, overflow: 'hidden' }}>
-              <div style={{ fontSize: 11, color: '#888', padding: '8px 14px 4px', background: '#fafafa' }}>{t.aiSuggestions}</div>
               {aiSuggestions.length === 0
                 ? <div style={{ padding: '12px 14px', fontSize: 13, color: '#888' }}>You are on track — great job!</div>
                 : aiSuggestions.map((s, i) => (
-                    <div key={i} style={{ padding: '10px 14px', borderBottom: '0.5px solid #f5f5f5', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                      <span style={{ fontSize: 20, flexShrink: 0 }}>{s.emoji}</span>
+                    <div key={i} style={{ padding: '10px 14px', borderBottom: '0.5px solid #f5f5f5', display: 'flex', gap: 10 }}>
+                      <span style={{ fontSize: 20 }}>{s.emoji}</span>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 500 }}>{s.food}</div>
                         <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{s.reason}</div>
@@ -911,17 +1478,15 @@ function AppInner() {
         onChange={e => setSearch(e.target.value)}
         style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '0.5px solid #ddd', fontSize: 15, marginBottom: 10, boxSizing: 'border-box' }} />
  
-      {/* Local results */}
       {search && localFiltered.length > 0 && (
         <div style={{ border: '0.5px solid #e5e5e5', borderRadius: 12, overflow: 'hidden', marginBottom: 10 }}>
           <div style={{ fontSize: 11, color: '#888', padding: '8px 14px 4px', background: '#fafafa' }}>{t.indianFoods}</div>
           {localFiltered.slice(0, 5).map(food => (
-            <FoodRow key={food.name} food={food} onClick={() => { setPending(food); setSearch('') }} />
+            <FoodRow key={food.id} food={food} onClick={() => { setPending(food); setSearch('') }} />
           ))}
         </div>
       )}
  
-      {/* USDA results */}
       {search.length >= 3 && (
         <div style={{ border: '0.5px solid #e5e5e5', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: '#888', padding: '8px 14px 4px', background: '#fafafa', display: 'flex', justifyContent: 'space-between' }}>
@@ -961,7 +1526,6 @@ function AppInner() {
         </div>
       ))}
  
-      {/* Day note */}
       {state.log.length > 0 && (
         <textarea placeholder={t.dayNote} value={state.dayNote}
           onChange={e => dispatch({ type: 'SET_NOTE', val: e.target.value })}
@@ -983,10 +1547,17 @@ function AppInner() {
   )
 }
  
-// ─── ROOT ────────────────────────────────────────────────────────────────────
+// ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
+  // Setup flow: lang → auth → name → body → goals → app
   const [lang, setLang] = useState(() => localStorage.getItem('vm_lang') || null)
+  const [authEmail, setAuthEmail] = useState(() => localStorage.getItem('vm_auth') || null)
   const [user, setUser] = useState(() => localStorage.getItem('vm_user') || null)
+  const [bodyData, setBodyData] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('vm_body')) } catch { return null }
+  })
+  const [setupStep, setSetupStep] = useState('name') // 'name' | 'body' | 'goals'
+  const [pendingSuggestedGoals, setPendingSuggestedGoals] = useState(null)
  
   const [state, dispatch] = useReducer(appReducer, initialState, () => {
     try {
@@ -995,28 +1566,39 @@ export default function App() {
       const journal = JSON.parse(localStorage.getItem('vm_journal')) || {}
       const waterGlasses = parseInt(localStorage.getItem('vm_water_' + todayKey())) || 0
       const dayNote = localStorage.getItem('vm_note_' + todayKey()) || ''
-      return { goals, log, journal, waterGlasses, dayNote }
+      const recipes = JSON.parse(localStorage.getItem('vm_recipes')) || []
+      return { goals, log, journal, waterGlasses, dayNote, recipes }
     } catch { return initialState }
   })
  
-  // Persist all state
   useEffect(() => { if (lang) localStorage.setItem('vm_lang', lang) }, [lang])
+  useEffect(() => { if (authEmail) localStorage.setItem('vm_auth', authEmail) }, [authEmail])
   useEffect(() => { if (user) localStorage.setItem('vm_user', user) }, [user])
+  useEffect(() => { if (bodyData) localStorage.setItem('vm_body', JSON.stringify(bodyData)) }, [bodyData])
   useEffect(() => { if (state.goals) localStorage.setItem('vm_goals', JSON.stringify(state.goals)) }, [state.goals])
   useEffect(() => { localStorage.setItem('vm_log_' + todayKey(), JSON.stringify(state.log)) }, [state.log])
   useEffect(() => { localStorage.setItem('vm_journal', JSON.stringify(state.journal)) }, [state.journal])
   useEffect(() => { localStorage.setItem('vm_water_' + todayKey(), state.waterGlasses) }, [state.waterGlasses])
   useEffect(() => { localStorage.setItem('vm_note_' + todayKey(), state.dayNote) }, [state.dayNote])
+  useEffect(() => { localStorage.setItem('vm_recipes', JSON.stringify(state.recipes)) }, [state.recipes])
  
-  const handleComplete = (name, rawGoals) => {
-    setUser(name)
-    localStorage.setItem('vm_user', name)
-    const goals = Object.fromEntries(Object.entries(rawGoals).map(([k, v]) => [k, Number(v)]))
-    dispatch({ type: 'SET_GOALS', goals })
+  // Flow gates
+  if (!lang) return <LanguagePicker onSelect={setLang} />
+  if (!authEmail) return <AuthScreen lang={lang} onAuth={email => { setAuthEmail(email); localStorage.setItem('vm_auth', email) }} />
+  if (!user || !state.goals) {
+    if (setupStep === 'name') return <NameStep lang={lang} onComplete={name => { setUser(name); setSetupStep('body') }} onBack={() => setLang(null)} />
+    if (setupStep === 'body') return <BodyProfileStep lang={lang}
+      onComplete={(bd, suggested) => { setBodyData(bd); setPendingSuggestedGoals(suggested); setSetupStep('goals') }}
+      onBack={() => setSetupStep('name')} />
+    if (setupStep === 'goals') return <GoalsReviewStep lang={lang}
+      suggestedGoals={pendingSuggestedGoals}
+      bodyData={bodyData}
+      onComplete={goals => {
+        const numGoals = Object.fromEntries(Object.entries(goals).map(([k, v]) => [k, Number(v)]))
+        dispatch({ type: 'SET_GOALS', goals: numGoals })
+      }}
+      onBack={() => setSetupStep('body')} />
   }
- 
-  if (!lang) return <LanguagePicker onSelect={(l) => { setLang(l); localStorage.setItem('vm_lang', l) }} />
-  if (!user || !state.goals) return <Setup onComplete={handleComplete} lang={lang} />
  
   return (
     <AppContext.Provider value={{ state, dispatch, lang, user, goals: state.goals }}>
@@ -1027,20 +1609,18 @@ export default function App() {
  
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const S = {
-  setupWrap: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px', fontFamily: 'system-ui, sans-serif' },
-  setupCard: { width: '100%', maxWidth: 420, background: '#fff', borderRadius: 20, border: '0.5px solid #e5e5e5', padding: '32px 28px' },
+  setupWrap: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px', fontFamily: 'system-ui, sans-serif', background: '#fafafa' },
+  setupCard: { width: '100%', maxWidth: 420, background: '#fff', borderRadius: 20, border: '0.5px solid #e5e5e5', padding: '32px 28px', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' },
   emoji: { fontSize: 40, marginBottom: 12 },
   setupTitle: { fontSize: 22, fontWeight: 600, marginBottom: 6 },
   setupSub: { fontSize: 14, color: '#888', marginBottom: 24 },
   field: { marginBottom: 16 },
-  label: { fontSize: 13, color: '#555', display: 'block', marginBottom: 6 },
-  input: { width: '100%', padding: '10px 14px', borderRadius: 10, border: '0.5px solid #ddd', fontSize: 15, boxSizing: 'border-box', outline: 'none' },
+  label: { fontSize: 13, color: '#555', display: 'block', marginBottom: 6, fontWeight: 500 },
+  input: { width: '100%', padding: '10px 14px', borderRadius: 10, border: '0.5px solid #ddd', fontSize: 15, boxSizing: 'border-box', outline: 'none', fontFamily: 'system-ui' },
   btnActive: { flex: 1, padding: '12px', borderRadius: 10, background: '#1D9E75', color: '#fff', border: 'none', fontSize: 15, fontWeight: 500, cursor: 'pointer' },
   btnDisabled: { flex: 1, padding: '12px', borderRadius: 10, background: '#e5e5e5', color: '#aaa', border: 'none', fontSize: 15, fontWeight: 500, cursor: 'not-allowed' },
   btnBack: { padding: '12px 20px', borderRadius: 10, background: 'none', color: '#888', border: '0.5px solid #ddd', fontSize: 15, cursor: 'pointer' },
   modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 100 },
   modalCard: { width: '100%', maxWidth: 420, background: '#fff', borderRadius: 20, padding: '28px 24px', maxHeight: '90vh', overflowY: 'auto' },
-  qtyBtn: { width: 36, height: 36, borderRadius: 10, border: '0.5px solid #ddd', background: '#f9f9f9', fontSize: 20, cursor: 'pointer' },
+  qtyBtn: { width: 36, height: 36, borderRadius: 10, border: '0.5px solid #ddd', background: '#f9f9f9', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   iconBtn: { fontSize: 12, color: '#aaa', background: 'none', border: '0.5px solid #ddd', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' },
-}
- 
