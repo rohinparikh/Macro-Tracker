@@ -384,7 +384,7 @@ const getAISuggestions = (totals, goals) => {
 }
  
 // ─── USDA API ─────────────────────────────────────────────────────────────────
-const USDA_KEY = typeof import !== 'undefined' && import.meta?.env?.VITE_USDA_KEY || 'DEMO_KEY'
+const USDA_KEY = (typeof process !== 'undefined' && process.env?.VITE_USDA_KEY) || 'DEMO_KEY'
 const searchUSDA = async (query, signal) => {
   const res = await fetch(
     `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=6&api_key=${USDA_KEY}`,
@@ -1624,3 +1624,4 @@ const S = {
   modalCard: { width: '100%', maxWidth: 420, background: '#fff', borderRadius: 20, padding: '28px 24px', maxHeight: '90vh', overflowY: 'auto' },
   qtyBtn: { width: 36, height: 36, borderRadius: 10, border: '0.5px solid #ddd', background: '#f9f9f9', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   iconBtn: { fontSize: 12, color: '#aaa', background: 'none', border: '0.5px solid #ddd', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' },
+}
