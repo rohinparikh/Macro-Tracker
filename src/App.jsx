@@ -1,5 +1,5 @@
 import { useState, useEffect, useReducer, useMemo, useCallback, createContext, useContext, useRef } from 'react'
-
+ 
 // --- LANGUAGE DATA ------------------------------------------------------------
 const LANGUAGES = {
   en: {
@@ -161,7 +161,7 @@ const LANGUAGES = {
     barcodeNotFound: 'उत्पाद नहीं मिला.', stopScan: 'बंद करें',
   },
 }
-
+ 
 // Add remaining languages with English fallback for new keys
 const LANG_CODES = ['en', 'gu', 'hi', 'mr', 'ta', 'te', 'kn', 'pa']
 LANG_CODES.forEach(code => {
@@ -173,14 +173,14 @@ LANG_CODES.forEach(code => {
     })
   }
 })
-
+ 
 const LANG_OPTIONS = [
   { code: 'en', label: 'English' }, { code: 'gu', label: 'ગુજરાતી' },
   { code: 'hi', label: 'हिन्दी' }, { code: 'mr', label: 'मराठी' },
   { code: 'ta', label: 'தமிழ்' }, { code: 'te', label: 'తెలుగు' },
   { code: 'kn', label: 'ಕನ್ನಡ' }, { code: 'pa', label: 'ਪੰਜਾਬੀ' },
 ]
-
+ 
 // --- FOOD DATABASE ------------------------------------------------------------
 const LOCAL_FOODS = [
   { id:'paneer', name:'Paneer', category:'protein', cuisine:'indian', portion:'100g', calories:265, protein:18, carbs:1, fat:20, fiber:0, gi:'Low' },
@@ -212,7 +212,7 @@ const LOCAL_FOODS = [
   { id:'bajra_rotla', name:'Bajra rotla', category:'carb', cuisine:'gujarati', portion:'1 rotla (60g)', calories:155, protein:4, carbs:28, fat:3, fiber:4, gi:'Low' },
   { id:'mag_dal', name:'Mag ni dal (whole moong)', category:'protein', cuisine:'gujarati', portion:'1 katori (150g)', calories:148, protein:10, carbs:24, fat:1, fiber:7, gi:'Low' },
 ]
-
+ 
 const HEALTH_TIPS = [
   "Pair high-GI foods like rice with dal or curd — it significantly slows glucose absorption.",
   "South Asians have 4x higher diabetes risk than Europeans. Carb quality matters more than quantity.",
@@ -225,7 +225,7 @@ const HEALTH_TIPS = [
   "Chaas (buttermilk) after meals aids digestion and adds protein with very few calories.",
   "Eating a small katori of curd with meals slows carb absorption and adds gut-friendly probiotics.",
 ]
-
+ 
 // --- TDEE / MACRO CALCULATOR -------------------------------------------------
 const ACTIVITY_MULTIPLIERS = {
   sedentary: 1.2,
@@ -234,12 +234,12 @@ const ACTIVITY_MULTIPLIERS = {
   veryActive: 1.725,
   superActive: 1.9,
 }
-
+ 
 // Unit converters
 const lbsToKg  = lbs => parseFloat((lbs * 0.453592).toFixed(1))
 const kgToLbs  = kg  => parseFloat((kg  * 2.20462).toFixed(1))
 const ftInToCm = (ft, inches) => Math.round((Number(ft) * 30.48) + (Number(inches) * 2.54))
-
+ 
 // Mifflin-St Jeor BMR (sex-specific)
 // Male:   10W + 6.25H - 5A + 5
 // Female: 10W + 6.25H - 5A - 161
@@ -248,19 +248,19 @@ const calcTDEE = (age, weightKg, heightCm, activity, sex) => {
   const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + offset
   return Math.round(bmr * (ACTIVITY_MULTIPLIERS[activity] || 1.55))
 }
-
+ 
 const calcBMI = (weightKg, heightCm) => {
   const h = heightCm / 100
   return Math.round((weightKg / (h * h)) * 10) / 10
 }
-
+ 
 const bmiCategory = (bmi, t) => {
   if (bmi < 18.5) return { label: t.bmiUnderweight, color: '#378ADD' }
   if (bmi < 25)   return { label: t.bmiNormal,      color: '#1D9E75' }
   if (bmi < 30)   return { label: t.bmiOverweight,  color: '#EF9F27' }
   return                  { label: t.bmiObese,       color: '#E24B4A' }
 }
-
+ 
 // Protein: 0.7g per lb bodyweight (realistic vegetarian target ~1.54g/kg)
 // Fat: 27% of calories
 // Carbs: fill remainder
@@ -268,22 +268,22 @@ const suggestMacros = (tdee, fitnessGoal, weightKg) => {
   let calories = tdee
   if (fitnessGoal === 'lose') calories = Math.round(tdee * 0.82)
   if (fitnessGoal === 'gain') calories = Math.round(tdee * 1.10)
-
+ 
   const weightLbs = kgToLbs(weightKg)
   const protein   = Math.round(weightLbs * 0.7)
   const fat       = Math.round((calories * 0.27) / 9)
   const carbs     = Math.max(50, Math.round((calories - protein * 4 - fat * 9) / 4))
   const fiber     = 28
   const sugar     = Math.round(carbs * 0.08)
-
+ 
   return { calories, protein, carbs, sugar, fat, fiber }
 }
-
+ 
 // --- STATE --------------------------------------------------------------------
 const initialState = {
   log: [], journal: {}, goals: null, waterGlasses: 0, dayNote: '', recipes: [],
 }
-
+ 
 function appReducer(state, action) {
   switch (action.type) {
     case 'ADD_FOOD': return { ...state, log: [...state.log, action.food] }
@@ -297,19 +297,19 @@ function appReducer(state, action) {
     default: return state
   }
 }
-
+ 
 const AppContext = createContext(null)
 const useApp = () => useContext(AppContext)
-
+ 
 // --- HELPERS -----------------------------------------------------------------
 const todayKey = () => new Date().toISOString().slice(0, 10)
-
+ 
 const giColor = (gi) => {
   if (gi === 'Low') return '#1D9E75'
   if (gi === 'Medium') return '#EF9F27'
   return '#E24B4A'
 }
-
+ 
 const scaleFood = (food, qty) => ({
   ...food,
   calories: Math.round(food.calories * qty),
@@ -318,7 +318,7 @@ const scaleFood = (food, qty) => ({
   fat: Math.round(food.fat * qty * 10) / 10,
   fiber: Math.round(food.fiber * qty * 10) / 10,
 })
-
+ 
 const calcStreak = (journal) => {
   let count = 0
   const d = new Date()
@@ -335,10 +335,10 @@ const calcStreak = (journal) => {
   }
   return count
 }
-
+ 
 const WEIGHTS = { protein: 3, calories: 2, carbs: 1, fat: 1, fiber: 1 }
 const MAX_SCORE = Object.values(WEIGHTS).reduce((s, w) => s + w * 2, 0)
-
+ 
 const calcRatingWithBreakdown = (totals, goals) => {
   const checks = [
     { key: 'protein', label: 'Protein', val: totals.protein, goal: goals.protein },
@@ -362,7 +362,7 @@ const calcRatingWithBreakdown = (totals, goals) => {
   const rating = Math.max(1, Math.min(10, Math.round((score / MAX_SCORE) * 10)))
   return { rating, reasons }
 }
-
+ 
 const ratingLabel = (r, t) => {
   if (r >= 9) return { label: t.excellent, color: '#1D9E75' }
   if (r >= 7) return { label: t.great, color: '#5DCAA5' }
@@ -370,7 +370,7 @@ const ratingLabel = (r, t) => {
   if (r >= 3) return { label: t.fair, color: '#D85A30' }
   return { label: t.poor, color: '#E24B4A' }
 }
-
+ 
 const getMeals = (t) => [
   { key: 'breakfast', label: t.breakfast, emoji: '🌅' },
   { key: 'lunch', label: t.lunch, emoji: '☀️' },
@@ -378,7 +378,7 @@ const getMeals = (t) => [
   { key: 'snack', label: t.snack, emoji: '🍎' },
   { key: 'dessert', label: t.dessert, emoji: '🍮' },
 ]
-
+ 
 const getAISuggestions = (totals, goals) => {
   const suggestions = []
   const proteinGap = goals.protein - totals.protein
@@ -393,7 +393,7 @@ const getAISuggestions = (totals, goals) => {
   if (totals.calories < goals.calories * 0.6) suggestions.push({ emoji: '🍛', food: 'Add a full meal', reason: `Under 60% of calorie goal` })
   return suggestions.slice(0, 4)
 }
-
+ 
 // --- USDA API -----------------------------------------------------------------
 const USDA_KEY = (typeof process !== 'undefined' && process.env?.VITE_USDA_KEY) || 'DEMO_KEY'
 const searchUSDA = async (query, signal) => {
@@ -417,7 +417,7 @@ const searchUSDA = async (query, signal) => {
     }
   })
 }
-
+ 
 // --- AUTH SCREEN --------------------------------------------------------------
 function AuthScreen({ lang, onAuth }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
@@ -428,7 +428,7 @@ function AuthScreen({ lang, onAuth }) {
   const [error, setError] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
-
+ 
   const validate = () => {
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
     if (!emailOk) return t.invalidEmail
@@ -436,24 +436,24 @@ function AuthScreen({ lang, onAuth }) {
     if (isSignUp && password !== confirm) return t.passwordMismatch
     return null
   }
-
+ 
   // Cross-device auth using jsonblob.com (free, no API key, persistent blobs).
   // Each user gets their own blob keyed by a deterministic ID derived from their email.
   // Password is SHA-256 hashed before storage — never stored in plaintext.
-
+ 
   const hashStr = async (str) => {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
   }
-
+ 
   // Blob ID = first 16 chars of SHA-256(email + app_id) — deterministic, same on every device
   const getBlobId = async (emailKey) => {
     const h = await hashStr(emailKey.toLowerCase() + '_vegmacro_app_v1')
     return h.slice(0, 16)
   }
-
+ 
   const BLOB_BASE = 'https://jsonblob.com/api/jsonBlob'
-
+ 
   const loadAccount = async (blobId) => {
     try {
       const res = await fetch(`${BLOB_BASE}/${blobId}`, { headers: { 'Accept': 'application/json' } })
@@ -461,7 +461,7 @@ function AuthScreen({ lang, onAuth }) {
     } catch (_e) {}
     return null
   }
-
+ 
   const saveAccount = async (blobId, data) => {
     // Try PUT (update existing)
     try {
@@ -489,20 +489,20 @@ function AuthScreen({ lang, onAuth }) {
     } catch (_e) {}
     return false
   }
-
+ 
   const handleSubmit = async () => {
     const err = validate()
     if (err) { setError(err); return }
     setLoading(true)
     setError('')
-
+ 
     try {
       const emailKey   = email.toLowerCase().trim()
       const pwHash     = await hashStr(password + emailKey + 'vegmacro_salt')
       const blobId     = await getBlobId(emailKey)
       // Check for remapped real blob ID (from POST response)
       const realBlobId = localStorage.getItem('vm_blob_' + blobId) || blobId
-
+ 
       if (isSignUp) {
         // Check if account already exists in cloud
         const existing = await loadAccount(realBlobId)
@@ -558,7 +558,7 @@ function AuthScreen({ lang, onAuth }) {
     }
     setLoading(false)
   }
-
+ 
   return (
     <div style={S.setupWrap}>
       <div style={{ ...S.setupCard, maxWidth: 400 }}>
@@ -568,7 +568,7 @@ function AuthScreen({ lang, onAuth }) {
           <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>VegMacro</h1>
           <p style={{ fontSize: 13, color: '#888', marginTop: 4 }}>{t.tagline}</p>
         </div>
-
+ 
         <div style={{ display: 'flex', background: '#f5f5f5', borderRadius: 10, padding: 3, marginBottom: 24 }}>
           {[{ label: t.createAccount, val: true }, { label: t.signIn, val: false }].map(opt => (
             <button key={String(opt.val)} onClick={() => { setIsSignUp(opt.val); setError('') }}
@@ -577,13 +577,13 @@ function AuthScreen({ lang, onAuth }) {
             </button>
           ))}
         </div>
-
+ 
         <div style={S.field}>
           <label style={S.label}>{t.email}</label>
           <input style={S.input} type="email" placeholder="you@example.com" value={email}
             onChange={e => { setEmail(e.target.value); setError('') }} />
         </div>
-
+ 
         <div style={S.field}>
           <label style={S.label}>{t.password}</label>
           <div style={{ position: 'relative' }}>
@@ -597,7 +597,7 @@ function AuthScreen({ lang, onAuth }) {
             </button>
           </div>
         </div>
-
+ 
         {isSignUp && (
           <div style={S.field}>
             <label style={S.label}>{t.confirmPassword}</label>
@@ -606,13 +606,13 @@ function AuthScreen({ lang, onAuth }) {
               onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
           </div>
         )}
-
+ 
         {error && <div style={{ background: '#FFF0F0', border: '0.5px solid #F7C1C1', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#A32D2D' }}>{error}</div>}
-
+ 
         <button onClick={handleSubmit} disabled={loading} style={{ ...S.btnActive, width: '100%', padding: '13px', fontSize: 15, borderRadius: 12, opacity: loading ? 0.7 : 1 }}>
           {loading ? 'Please wait...' : (isSignUp ? t.createAccount : t.signIn) + ' →'}
         </button>
-
+ 
         <p style={{ textAlign: 'center', fontSize: 12, color: '#888', marginTop: 16 }}>
           {isSignUp ? t.alreadyHaveAccount : t.noAccount}
           <button onClick={() => { setIsSignUp(v => !v); setError('') }}
@@ -624,7 +624,7 @@ function AuthScreen({ lang, onAuth }) {
     </div>
   )
 }
-
+ 
 // --- LANGUAGE PICKER ----------------------------------------------------------
 function LanguagePicker({ onSelect }) {
   return (
@@ -645,26 +645,26 @@ function LanguagePicker({ onSelect }) {
     </div>
   )
 }
-
+ 
 // --- BODY PROFILE STEP --------------------------------------------------------
 function BodyProfileStep({ lang, onComplete, onBack }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
   const [age, setAge] = useState('')
   const [sex, setSex] = useState('male')
-
+ 
   // Weight: support lbs or kg
   const [weightUnit, setWeightUnit] = useState('lbs')
   const [weightVal, setWeightVal] = useState('')
-
+ 
   // Height: support ft/in or cm
   const [heightUnit, setHeightUnit] = useState('ftIn')
   const [heightFt, setHeightFt] = useState('')
   const [heightIn, setHeightIn] = useState('')
   const [heightCmVal, setHeightCmVal] = useState('')
-
+ 
   const [activity, setActivity] = useState('moderatelyActive')
   const [fitnessGoal, setFitnessGoal] = useState('maintain')
-
+ 
   // Derive kg and cm for calculations regardless of display unit
   const weightKg = weightVal
     ? (weightUnit === 'lbs' ? lbsToKg(Number(weightVal)) : Number(weightVal))
@@ -672,13 +672,13 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
   const heightCm = heightUnit === 'ftIn'
     ? (heightFt || heightIn ? ftInToCm(heightFt || 0, heightIn || 0) : null)
     : (heightCmVal ? Number(heightCmVal) : null)
-
+ 
   const bmi     = weightKg && heightCm ? calcBMI(weightKg, heightCm) : null
   const bmiInfo = bmi ? bmiCategory(bmi, t) : null
-
+ 
   const valid = age && weightKg && heightCm
     && Number(age) > 0 && weightKg > 0 && heightCm > 0
-
+ 
   const ACTIVITY_OPTIONS = [
     { key: 'sedentary',        label: t.sedentary },
     { key: 'lightlyActive',    label: t.lightlyActive },
@@ -686,13 +686,13 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
     { key: 'veryActive',       label: t.veryActive },
     { key: 'superActive',      label: t.superActive },
   ]
-
+ 
   const GOAL_OPTIONS = [
     { key: 'lose',     label: t.goal_lose,     emoji: '📉' },
     { key: 'maintain', label: t.goal_maintain, emoji: '⚖️' },
     { key: 'gain',     label: t.goal_gain,     emoji: '💪' },
   ]
-
+ 
   const handleNext = () => {
     const tdee   = calcTDEE(Number(age), weightKg, heightCm, activity, sex)
     const macros = suggestMacros(tdee, fitnessGoal, weightKg)
@@ -701,21 +701,21 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
       macros
     )
   }
-
+ 
   const unitToggleStyle = (active) => ({
     flex: 1, padding: '5px', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer',
     background: active ? '#1D9E75' : 'transparent',
     color: active ? '#fff' : '#888', fontWeight: active ? 600 : 400,
     transition: 'all 0.15s',
   })
-
+ 
   return (
     <div style={S.setupWrap}>
       <div style={{ ...S.setupCard, maxWidth: 440 }}>
         <div style={S.emoji}>📊</div>
         <h1 style={S.setupTitle}>{t.bodyProfile}</h1>
         <p style={S.setupSub}>{t.bodyProfileSub}</p>
-
+ 
         {/* Sex selector */}
         <div style={{ ...S.field }}>
           <label style={S.label}>Biological Sex</label>
@@ -732,7 +732,7 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
             ))}
           </div>
         </div>
-
+ 
         {/* Age */}
         <div style={S.field}>
           <label style={S.label}>{t.age} ({t.years})</label>
@@ -740,7 +740,7 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
             value={age} min="10" max="100"
             onChange={e => setAge(e.target.value)} />
         </div>
-
+ 
         {/* Weight with unit toggle */}
         <div style={S.field}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -768,7 +768,7 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
             {weightKg && <span style={{ fontSize: 12, color: '#aaa' }}>({weightKg} kg)</span>}
           </div>
         </div>
-
+ 
         {/* Height with unit toggle */}
         <div style={S.field}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -801,7 +801,7 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
             </div>
           )}
         </div>
-
+ 
         {/* BMI Preview */}
         {bmi && (
           <div style={{ background: bmiInfo.color + '15', border: `0.5px solid ${bmiInfo.color}55`,
@@ -814,7 +814,7 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
             <div style={{ fontSize: 28, fontWeight: 700, color: bmiInfo.color }}>{bmi}</div>
           </div>
         )}
-
+ 
         {/* Activity */}
         <div style={S.field}>
           <label style={S.label}>{t.activityLevel}</label>
@@ -832,7 +832,7 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
             ))}
           </div>
         </div>
-
+ 
         {/* Goal */}
         <div style={S.field}>
           <label style={S.label}>{t.fitnessGoal}</label>
@@ -849,7 +849,7 @@ function BodyProfileStep({ lang, onComplete, onBack }) {
             ))}
           </div>
         </div>
-
+ 
         <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
           <button style={S.btnBack} onClick={onBack}>{t.backBtn}</button>
           <button style={valid ? S.btnActive : S.btnDisabled} onClick={handleNext} disabled={!valid}>
@@ -869,16 +869,16 @@ function GoalsReviewStep({ lang, suggestedGoals, bodyData, onComplete, onBack })
     const clamped = Math.min(Number(v), maxes[k] || 500)
     setGoals(g => ({ ...g, [k]: isNaN(clamped) ? '' : clamped }))
   }
-
+ 
   const tdee = bodyData?.tdee || 0
-
+ 
   return (
     <div style={S.setupWrap}>
       <div style={{ ...S.setupCard, maxWidth: 440 }}>
         <div style={S.emoji}>🎯</div>
         <h1 style={S.setupTitle}>{t.setGoals}</h1>
         <p style={S.setupSub}>{t.goalsSub}</p>
-
+ 
         {/* TDEE info box */}
         {tdee > 0 && (
           <div style={{ background: '#E1F5EE', border: '0.5px solid #9FE1CB', borderRadius: 12, padding: '12px 14px', marginBottom: 20 }}>
@@ -891,7 +891,7 @@ function GoalsReviewStep({ lang, suggestedGoals, bodyData, onComplete, onBack })
             </div>
           </div>
         )}
-
+ 
         {[
           { key: 'calories', label: t.calories, unit: 'kcal' },
           { key: 'protein', label: t.protein, unit: 'g' },
@@ -912,7 +912,7 @@ function GoalsReviewStep({ lang, suggestedGoals, bodyData, onComplete, onBack })
             </div>
           </div>
         ))}
-
+ 
         <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
           <button style={S.btnBack} onClick={onBack}>{t.backBtn}</button>
           <button style={S.btnActive} onClick={() => onComplete(goals)}>{t.startBtn}</button>
@@ -921,7 +921,7 @@ function GoalsReviewStep({ lang, suggestedGoals, bodyData, onComplete, onBack })
     </div>
   )
 }
-
+ 
 // --- SETUP (name only now) ----------------------------------------------------
 function NameStep({ lang, onComplete, onBack }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
@@ -946,7 +946,7 @@ function NameStep({ lang, onComplete, onBack }) {
     </div>
   )
 }
-
+ 
 // --- ADD FOOD MODAL -----------------------------------------------------------
 function AddFoodModal({ food, onConfirm, onCancel, lang }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
@@ -954,7 +954,7 @@ function AddFoodModal({ food, onConfirm, onCancel, lang }) {
   const [meal, setMeal] = useState('')
   const preview = useMemo(() => scaleFood(food, qty), [food, qty])
   const MEALS = getMeals(t)
-
+ 
   return (
     <div style={S.modalOverlay}>
       <div style={S.modalCard}>
@@ -964,7 +964,7 @@ function AddFoodModal({ food, onConfirm, onCancel, lang }) {
           {food.source === 'BARCODE' && <span style={{ fontSize: 11, background: '#E1F5EE', color: '#1D9E75', padding: '3px 8px', borderRadius: 8 }}>Scanned</span>}
         </div>
         <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>{food.portion}</p>
-
+ 
         <label style={S.label}>{t.quantity}</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
           <button onClick={() => setQty(q => Math.max(0.5, parseFloat((q - 0.5).toFixed(1))))} style={S.qtyBtn}>−</button>
@@ -972,7 +972,7 @@ function AddFoodModal({ food, onConfirm, onCancel, lang }) {
           <button onClick={() => setQty(q => parseFloat((q + 0.5).toFixed(1)))} style={S.qtyBtn}>+</button>
           <span style={{ fontSize: 13, color: '#aaa' }}>× {food.portion}</span>
         </div>
-
+ 
         <label style={S.label}>{t.addToMeal}</label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
           {MEALS.map(m => (
@@ -982,7 +982,7 @@ function AddFoodModal({ food, onConfirm, onCancel, lang }) {
             </button>
           ))}
         </div>
-
+ 
         <div style={{ background: '#f9f9f9', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>{t.nutritionPreview}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
@@ -1001,7 +1001,7 @@ function AddFoodModal({ food, onConfirm, onCancel, lang }) {
             ))}
           </div>
         </div>
-
+ 
         <div style={{ display: 'flex', gap: 10 }}>
           <button style={S.btnBack} onClick={onCancel}>{t.cancel}</button>
           <button style={meal ? S.btnActive : S.btnDisabled} onClick={() => meal && onConfirm({ ...preview, meal })}>
@@ -1012,7 +1012,7 @@ function AddFoodModal({ food, onConfirm, onCancel, lang }) {
     </div>
   )
 }
-
+ 
 // --- BARCODE SCANNER ---------------------------------------------------------
 // Uses ZXing-js (loaded from CDN) for broad browser/camera support.
 // Nutrition from Open Food Facts — reads per-serving fields with per-100g fallback.
@@ -1024,7 +1024,7 @@ function BarcodeScanner({ lang, onFound, onClose }) {
   const [status, setStatus]           = useState('loading')  // loading|scanning|lookingup|notfound|error|manual
   const [manualBarcode, setManualBarcode] = useState('')
   const [zxingReady, setZxingReady]   = useState(false)
-
+ 
   // -- Load ZXing from CDN --------------------------------------------------
   useEffect(() => {
     if (window.ZXing) { setZxingReady(true); return }
@@ -1035,12 +1035,12 @@ function BarcodeScanner({ lang, onFound, onClose }) {
     document.head.appendChild(script)
     return () => { try { document.head.removeChild(script) } catch (_e) {} }
   }, [])
-
+ 
   // -- Start scanner once ZXing is ready -----------------------------------
   useEffect(() => {
     if (!zxingReady || !videoRef.current) return
     let cancelled = false
-
+ 
     const start = async () => {
       try {
         const hints = new Map()
@@ -1053,10 +1053,10 @@ function BarcodeScanner({ lang, onFound, onClose }) {
         ]
         hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, formats)
         hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true)
-
+ 
         const reader = new window.ZXing.BrowserMultiFormatReader(hints, 500)
         readerRef.current = reader
-
+ 
         // Get camera stream
         const mediaStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
@@ -1066,7 +1066,7 @@ function BarcodeScanner({ lang, onFound, onClose }) {
         videoRef.current.srcObject = mediaStream
         await videoRef.current.play()
         setStatus('scanning')
-
+ 
         reader.decodeFromStream(mediaStream, videoRef.current, (result, err) => {
           if (cancelled) return
           if (result) {
@@ -1080,7 +1080,7 @@ function BarcodeScanner({ lang, onFound, onClose }) {
         if (!cancelled) setStatus('manual')
       }
     }
-
+ 
     start()
     return () => {
       cancelled = true
@@ -1088,14 +1088,14 @@ function BarcodeScanner({ lang, onFound, onClose }) {
       if (streamRef.current) streamRef.current.getTracks().forEach(tr => tr.stop())
     }
   }, [zxingReady])
-
+ 
   // -- Open Food Facts lookup with proper field priority -------------------
   const lookupBarcode = async (barcode) => {
     setStatus('lookingup')
     // Stop camera immediately so user knows scan worked
     if (readerRef.current) { try { readerRef.current.reset() } catch (_e) {} }
     if (streamRef.current) streamRef.current.getTracks().forEach(tr => tr.stop())
-
+ 
     try {
       // Use v2 API — more reliable field names
       const res = await fetch(
@@ -1103,7 +1103,7 @@ function BarcodeScanner({ lang, onFound, onClose }) {
         { headers: { 'User-Agent': 'VegMacro/1.0' } }
       )
       const data = await res.json()
-
+ 
       if (data.status !== 1 || !data.product) {
         // Try UPC lookup as fallback (some US products only in OFF-US)
         const res2 = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`)
@@ -1117,17 +1117,17 @@ function BarcodeScanner({ lang, onFound, onClose }) {
       setStatus('error')
     }
   }
-
+ 
   const parseAndReturn = (p) => {
     const n = p.nutriments || {}
-
+ 
     // Serving size in grams — prefer serving_quantity (numeric g), fall back to parsing serving_size string
     let servingG = parseFloat(p.serving_quantity) || null
     if (!servingG && p.serving_size) {
       const m = p.serving_size.match(/(\d+\.?\d*)\s*g/i)
       if (m) servingG = parseFloat(m[1])
     }
-
+ 
     // Helper: get the per-serving value if serving size is known, else per-100g
     // OFF stores both: `protein_serving` (per serving) and `proteins_100g` (per 100g)
     const perServing = (key100, keyServing) => {
@@ -1137,9 +1137,9 @@ function BarcodeScanner({ lang, onFound, onClose }) {
       // No serving info — return per-100g
       return Math.round((n[key100] || 0) * 10) / 10
     }
-
+ 
     const portionLabel = servingG ? `1 serving (${servingG}g)` : '100g'
-
+ 
     const food = {
       name: p.product_name || p.product_name_en || 'Unknown Product',
       portion: portionLabel,
@@ -1155,24 +1155,24 @@ function BarcodeScanner({ lang, onFound, onClose }) {
     }
     onFound(food)
   }
-
+ 
   const handleManualLookup = () => {
     if (manualBarcode.trim()) lookupBarcode(manualBarcode.trim())
   }
-
+ 
   const handleClose = () => {
     if (readerRef.current) { try { readerRef.current.reset() } catch (_e) {} }
     if (streamRef.current) streamRef.current.getTracks().forEach(tr => tr.stop())
     onClose()
   }
-
+ 
   return (
     <div style={S.modalOverlay}>
       <div style={{ ...S.modalCard, padding: 0, overflow: 'hidden', maxWidth: 420 }}>
         {/* Viewfinder */}
         <div style={{ position: 'relative', background: '#111', width: '100%', aspectRatio: '4/3' }}>
           <video ref={videoRef} style={{ width: '100%', height: '100%', objectFit: 'cover', display: status === 'scanning' ? 'block' : 'none' }} playsInline muted />
-
+ 
           {/* Scanning overlay frame */}
           {status === 'scanning' && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
@@ -1193,7 +1193,7 @@ function BarcodeScanner({ lang, onFound, onClose }) {
               </div>
             </div>
           )}
-
+ 
           {/* Non-scanning placeholder */}
           {status !== 'scanning' && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#666' }}>
@@ -1204,23 +1204,23 @@ function BarcodeScanner({ lang, onFound, onClose }) {
               {status === 'manual'    && <><div style={{ fontSize: 36 }}>⌨️</div><div style={{ marginTop: 8, fontSize: 13, color: '#aaa' }}>Camera unavailable — enter barcode</div></>}
             </div>
           )}
-
+ 
           <button onClick={handleClose}
             style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.65)', border: 'none', color: '#fff', borderRadius: 20, padding: '5px 13px', fontSize: 13, cursor: 'pointer', zIndex: 2 }}>
             ✕ {t.stopScan}
           </button>
         </div>
-
+ 
         {/* Scanline CSS animation */}
         <style>{`@keyframes scanline { 0%,100% { top:10%; } 50% { top:85%; } }`}</style>
-
+ 
         <div style={{ padding: '14px 18px 18px' }}>
           {status === 'scanning' && (
             <p style={{ textAlign: 'center', color: '#1D9E75', fontSize: 13, margin: 0 }}>
               📷 Point the barcode at the green box
             </p>
           )}
-
+ 
           {/* Manual entry — always visible so user can type if scan fails */}
           <div style={{ marginTop: 12 }}>
             <p style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>Or enter barcode number manually:</p>
@@ -1250,13 +1250,13 @@ function RecipeBuilder({ lang, onClose }) {
   const [ingredients, setIngredients] = useState([])
   const [search, setSearch] = useState('')
   const [pending, setPending] = useState(null)
-
+ 
   const filtered = useMemo(() => {
     if (!search) return []
     const q = search.toLowerCase()
     return LOCAL_FOODS.filter(f => f.name.toLowerCase().includes(q)).slice(0, 6)
   }, [search])
-
+ 
   const totals = useMemo(() => ingredients.reduce((acc, ing) => ({
     calories: acc.calories + ing.calories,
     protein: acc.protein + ing.protein,
@@ -1264,13 +1264,13 @@ function RecipeBuilder({ lang, onClose }) {
     fat: acc.fat + ing.fat,
     fiber: acc.fiber + ing.fiber,
   }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }), [ingredients])
-
+ 
   const addIngredient = (food, qty) => {
     setIngredients(prev => [...prev, { ...scaleFood(food, qty), qty }])
     setSearch('')
     setPending(null)
   }
-
+ 
   const saveRecipe = () => {
     if (!recipeName.trim() || ingredients.length === 0) return
     const recipe = {
@@ -1285,13 +1285,13 @@ function RecipeBuilder({ lang, onClose }) {
     setRecipeName('')
     setIngredients([])
   }
-
+ 
   const { dispatch: d2, state: s2 } = useApp()
   const logRecipe = (recipe, meal) => {
     d2({ type: 'ADD_FOOD', food: { ...recipe.totals, name: recipe.name, portion: recipe.portion, meal, gi: 'Mixed', source: 'RECIPE' } })
     onClose()
   }
-
+ 
   return (
     <div style={S.modalOverlay}>
       <div style={{ ...S.modalCard, maxWidth: 480 }}>
@@ -1308,7 +1308,7 @@ function RecipeBuilder({ lang, onClose }) {
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#aaa' }}>×</button>
         </div>
-
+ 
         {/* My Recipes List */}
         {view === 'list' && (
           <>
@@ -1346,7 +1346,7 @@ function RecipeBuilder({ lang, onClose }) {
             ))}
           </>
         )}
-
+ 
         {/* Create Recipe */}
         {view === 'create' && (
           <>
@@ -1354,7 +1354,7 @@ function RecipeBuilder({ lang, onClose }) {
               <label style={S.label}>{t.recipeName}</label>
               <input style={S.input} placeholder="e.g. Dal Chawal" value={recipeName} onChange={e => setRecipeName(e.target.value)} />
             </div>
-
+ 
             {/* Ingredient search */}
             <label style={S.label}>{t.addIngredient}</label>
             <input style={{ ...S.input, marginBottom: 8 }} placeholder={t.searchPlaceholder} value={search}
@@ -1370,7 +1370,7 @@ function RecipeBuilder({ lang, onClose }) {
                 ))}
               </div>
             )}
-
+ 
             {/* Qty picker for ingredient */}
             {pending && (
               <div style={{ background: '#E1F5EE', borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
@@ -1378,7 +1378,7 @@ function RecipeBuilder({ lang, onClose }) {
                 <InlineQtyPicker food={pending} onAdd={addIngredient} onCancel={() => setPending(null)} t={t} />
               </div>
             )}
-
+ 
             {/* Ingredients list */}
             {ingredients.length > 0 && (
               <>
@@ -1411,7 +1411,7 @@ function RecipeBuilder({ lang, onClose }) {
                 </div>
               </>
             )}
-
+ 
             <button onClick={saveRecipe}
               style={recipeName.trim() && ingredients.length > 0 ? { ...S.btnActive, width: '100%' } : { ...S.btnDisabled, width: '100%' }}>
               💾 {t.saveRecipe}
@@ -1422,7 +1422,7 @@ function RecipeBuilder({ lang, onClose }) {
     </div>
   )
 }
-
+ 
 function InlineQtyPicker({ food, onAdd, onCancel, t }) {
   const [qty, setQty] = useState(1)
   return (
@@ -1436,17 +1436,17 @@ function InlineQtyPicker({ food, onAdd, onCancel, t }) {
     </div>
   )
 }
-
+ 
 // --- JOURNAL VIEW -------------------------------------------------------------
 function JournalView({ onClose, lang }) {
   const { state } = useApp()
   const t = LANGUAGES[lang] || LANGUAGES.en
   const [selected, setSelected] = useState(null)
   const [view, setView] = useState('list')
-
+ 
   const entries = useMemo(() =>
     Object.entries(state.journal).sort((a, b) => b[0].localeCompare(a[0])), [state.journal])
-
+ 
   const analytics = useMemo(() => {
     if (entries.length < 2) return null
     const vals = entries.map(([, d]) => d)
@@ -1455,10 +1455,10 @@ function JournalView({ onClose, lang }) {
     const avgProtein = Math.round(vals.reduce((s, d) => s + (d.totals?.protein || 0), 0) / vals.length)
     return { avgRating, bestDay: bestEntry[0], avgProtein }
   }, [entries])
-
+ 
   const fmtDate = (key) => new Date(key + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
   const ratingBg = (r) => r >= 8 ? '#1D9E75' : r >= 6 ? '#EF9F27' : '#E24B4A'
-
+ 
   return (
     <div style={S.modalOverlay}>
       <div style={{ ...S.modalCard, maxWidth: 500 }}>
@@ -1473,7 +1473,7 @@ function JournalView({ onClose, lang }) {
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#aaa' }}>×</button>
         </div>
-
+ 
         {view === 'analytics' && (
           <div>
             {!analytics ? <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb' }}>{t.analyticsEmpty}</div> : (
@@ -1503,7 +1503,7 @@ function JournalView({ onClose, lang }) {
             )}
           </div>
         )}
-
+ 
         {view === 'list' && !selected && (
           <>
             {entries.length === 0 && <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb' }}>{t.noSavedDays}</div>}
@@ -1522,7 +1522,7 @@ function JournalView({ onClose, lang }) {
             ))}
           </>
         )}
-
+ 
         {view === 'list' && selected && (() => {
           const day = state.journal[selected]
           return (
@@ -1553,7 +1553,7 @@ function JournalView({ onClose, lang }) {
     </div>
   )
 }
-
+ 
 // --- FOOD ROW -----------------------------------------------------------------
 function FoodRow({ food, onClick }) {
   return (
@@ -1572,13 +1572,13 @@ function FoodRow({ food, onClick }) {
     </div>
   )
 }
-
+ 
 // --- MAIN APP -----------------------------------------------------------------
 function AppInner() {
   const { state, dispatch, lang, user, goals } = useApp()
   const t = LANGUAGES[lang] || LANGUAGES.en
   const MEALS = useMemo(() => getMeals(t), [t])
-
+ 
   const [search, setSearch] = useState('')
   const [pending, setPending] = useState(null)
   const [usdaResults, setUsdaResults] = useState([])
@@ -1592,7 +1592,7 @@ function AppInner() {
   const [tip] = useState(() => HEALTH_TIPS[Math.floor(Math.random() * HEALTH_TIPS.length)])
   const [showTip, setShowTip] = useState(true)
   const [saveFeedback, setSaveFeedback] = useState('')
-
+ 
   const totals = useMemo(() => state.log.reduce((acc, item) => ({
     calories: acc.calories + item.calories,
     protein: acc.protein + item.protein,
@@ -1600,33 +1600,33 @@ function AppInner() {
     fat: acc.fat + item.fat,
     fiber: acc.fiber + item.fiber,
   }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }), [state.log])
-
+ 
   const { rating, reasons } = useMemo(() =>
     state.log.length > 0 ? calcRatingWithBreakdown(totals, goals) : { rating: null, reasons: [] },
     [totals, goals, state.log.length])
-
+ 
   const rl = useMemo(() => rating ? ratingLabel(rating, t) : null, [rating, t])
-
+ 
   const mealGroups = useMemo(() =>
     MEALS.map(m => ({ ...m, items: state.log.filter(i => i.meal === m.key) })).filter(m => m.items.length > 0),
     [state.log, MEALS])
-
+ 
   const warnings = useMemo(() => [
     totals.protein > goals.protein && `${t.protein} ${t.exceeded} (${Math.round(totals.protein)}g / ${goals.protein}g)`,
     totals.carbs > goals.carbs && `${t.carbs} ${t.exceeded} (${Math.round(totals.carbs)}g / ${goals.carbs}g)`,
     totals.fat > goals.fat && `${t.fat} ${t.exceeded} (${Math.round(totals.fat)}g / ${goals.fat}g)`,
     totals.calories > goals.calories && `${t.calories} ${t.exceeded} (${Math.round(totals.calories)} / ${goals.calories} kcal)`,
   ].filter(Boolean), [totals, goals, t])
-
+ 
   const aiSuggestions = useMemo(() => getAISuggestions(totals, goals), [totals, goals])
   const streak = useMemo(() => calcStreak(state.journal), [state.journal])
-
+ 
   const localFiltered = useMemo(() => {
     if (!search) return []
     const q = search.toLowerCase().trim()
     return LOCAL_FOODS.filter(f => q.split(' ').every(w => f.name.toLowerCase().includes(w)))
   }, [search])
-
+ 
   useEffect(() => {
     if (search.length < 3) { setUsdaResults([]); setUsdaError(false); return }
     const controller = new AbortController()
@@ -1641,14 +1641,14 @@ function AppInner() {
     }, 600)
     return () => { clearTimeout(timer); controller.abort() }
   }, [search])
-
+ 
   const confirmAdd = useCallback((item) => {
     dispatch({ type: 'ADD_FOOD', food: item })
     setPending(null); setSearch('')
   }, [dispatch])
-
+ 
   const removeFood = useCallback((index) => dispatch({ type: 'REMOVE_FOOD', index }), [dispatch])
-
+ 
   const saveDay = useCallback(() => {
     const key = todayKey()
     const alreadySaved = !!state.journal[key]
@@ -1656,21 +1656,21 @@ function AppInner() {
     setSaveFeedback(alreadySaved ? t.alreadySaved : t.daySaved)
     setTimeout(() => setSaveFeedback(''), 2500)
   }, [state, totals, rating, reasons, t, dispatch])
-
+ 
   const macros = useMemo(() => [
     { label: t.protein, val: totals.protein, goal: goals.protein, color: '#1D9E75' },
     { label: t.carbs, val: totals.carbs, goal: goals.carbs, color: '#378ADD' },
     { label: t.fat, val: totals.fat, goal: goals.fat, color: '#EF9F27' },
     { label: t.fiber, val: totals.fiber, goal: goals.fiber, color: '#639922' },
   ], [totals, goals, t])
-
+ 
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 110px', fontFamily: 'system-ui, sans-serif' }}>
       {pending && <AddFoodModal food={pending} onConfirm={confirmAdd} onCancel={() => setPending(null)} lang={lang} />}
       {showJournal && <JournalView onClose={() => setShowJournal(false)} lang={lang} />}
       {showRecipes && <RecipeBuilder lang={lang} onClose={() => setShowRecipes(false)} />}
       {showBarcode && <BarcodeScanner lang={lang} onFound={food => { setPending(food); setShowBarcode(false) }} onClose={() => setShowBarcode(false)} />}
-
+ 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <div>
@@ -1686,7 +1686,7 @@ function AppInner() {
           <button onClick={() => { localStorage.clear(); window.location.reload() }} style={S.iconBtn}>{t.editProfile}</button>
         </div>
       </div>
-
+ 
       {/* Tip */}
       {showTip && (
         <div style={{ background: '#E1F5EE', border: '0.5px solid #9FE1CB', borderRadius: 12, padding: '10px 14px', marginBottom: 14, display: 'flex', gap: 10 }}>
@@ -1695,7 +1695,7 @@ function AppInner() {
           <button onClick={() => setShowTip(false)} style={{ background: 'none', border: 'none', color: '#9FE1CB', cursor: 'pointer', fontSize: 16, padding: 0 }}>×</button>
         </div>
       )}
-
+ 
       {/* Day Rating */}
       {rating && (
         <div style={{ background: rl.color + '18', border: `0.5px solid ${rl.color}55`, borderRadius: 14, padding: '12px 16px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
@@ -1712,7 +1712,7 @@ function AppInner() {
           {reasons.map((r, i) => <div key={i} style={{ fontSize: 13, color: r.color, padding: '2px 0' }}>{r.text}</div>)}
         </div>
       )}
-
+ 
       {/* Macro Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
         {macros.map(m => {
@@ -1730,7 +1730,7 @@ function AppInner() {
           )
         })}
       </div>
-
+ 
       {/* Calories */}
       <div style={{ background: totals.calories > goals.calories ? '#FFF5F5' : '#f9f9f9', borderRadius: 12, padding: '12px 14px', border: `0.5px solid ${totals.calories > goals.calories ? '#F7C1C1' : '#e5e5e5'}`, marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 14, color: '#555' }}>{t.calories} {totals.calories > goals.calories && '⚠️'}</span>
@@ -1738,7 +1738,7 @@ function AppInner() {
           {totals.calories} <span style={{ fontSize: 13, fontWeight: 400, color: '#888' }}>/ {goals.calories} kcal</span>
         </span>
       </div>
-
+ 
       {/* Water */}
       <div style={{ background: '#E6F1FB', border: '0.5px solid #B5D4F4', borderRadius: 12, padding: '12px 14px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
@@ -1756,13 +1756,13 @@ function AppInner() {
             style={{ padding: '7px 12px', borderRadius: 10, background: '#378ADD', color: '#fff', border: 'none', fontSize: 13, cursor: 'pointer' }}>{t.addWater}</button>
         </div>
       </div>
-
+ 
       {/* Warnings */}
       {warnings.map(w => <div key={w} style={{ background: '#FCEBEB', border: '0.5px solid #F7C1C1', borderRadius: 12, padding: '10px 14px', marginBottom: 10, fontSize: 13, color: '#A32D2D' }}>🚨 {w}</div>)}
       {totals.protein < goals.protein * 0.5 && state.log.length > 0 && (
         <div style={{ background: '#FAEEDA', border: '0.5px solid #FAC775', borderRadius: 12, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#854F0B' }}>{t.lowProtein}</div>
       )}
-
+ 
       {/* Action buttons row */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <button onClick={() => setShowRecipes(true)}
@@ -1774,7 +1774,7 @@ function AppInner() {
           {t.scanBarcode}
         </button>
       </div>
-
+ 
       {/* AI Suggestions */}
       {state.log.length > 0 && (
         <div style={{ marginBottom: 14 }}>
@@ -1800,12 +1800,12 @@ function AppInner() {
           )}
         </div>
       )}
-
+ 
       {/* Search */}
       <input type="text" placeholder={t.searchPlaceholder} value={search}
         onChange={e => setSearch(e.target.value)}
         style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '0.5px solid #ddd', fontSize: 15, marginBottom: 10, boxSizing: 'border-box' }} />
-
+ 
       {search && localFiltered.length > 0 && (
         <div style={{ border: '0.5px solid #e5e5e5', borderRadius: 12, overflow: 'hidden', marginBottom: 10 }}>
           <div style={{ fontSize: 11, color: '#888', padding: '8px 14px 4px', background: '#fafafa' }}>{t.indianFoods}</div>
@@ -1814,7 +1814,7 @@ function AppInner() {
           ))}
         </div>
       )}
-
+ 
       {search.length >= 3 && (
         <div style={{ border: '0.5px solid #e5e5e5', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: '#888', padding: '8px 14px 4px', background: '#fafafa', display: 'flex', justifyContent: 'space-between' }}>
@@ -1828,11 +1828,11 @@ function AppInner() {
           ))}
         </div>
       )}
-
+ 
       {/* Log */}
       <div style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>{t.todaysLog} {state.log.length > 0 && `(${state.log.length})`}</div>
       {state.log.length === 0 && <div style={{ fontSize: 14, color: '#bbb', textAlign: 'center', padding: '32px 0' }}>{t.logEmpty}</div>}
-
+ 
       {mealGroups.map(group => (
         <div key={group.key} style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: '#555', marginBottom: 8 }}>{group.emoji} {group.label}</div>
@@ -1853,13 +1853,13 @@ function AppInner() {
           })}
         </div>
       ))}
-
+ 
       {state.log.length > 0 && (
         <textarea placeholder={t.dayNote} value={state.dayNote}
           onChange={e => dispatch({ type: 'SET_NOTE', val: e.target.value })}
           style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '0.5px solid #ddd', fontSize: 14, resize: 'none', height: 68, boxSizing: 'border-box', marginBottom: 12, fontFamily: 'system-ui' }} />
       )}
-
+ 
       {/* Bottom bar */}
       <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, background: '#fff', borderTop: '0.5px solid #e5e5e5', padding: '12px 16px', display: 'flex', gap: 10, zIndex: 50 }}>
         <button onClick={() => setShowJournal(true)}
@@ -1874,7 +1874,7 @@ function AppInner() {
     </div>
   )
 }
-
+ 
 // --- ROOT ---------------------------------------------------------------------
 export default function App() {
   // Setup flow: lang → auth → name → body → goals → app
@@ -1886,7 +1886,7 @@ export default function App() {
   })
   const [setupStep, setSetupStep] = useState('name') // 'name' | 'body' | 'goals'
   const [pendingSuggestedGoals, setPendingSuggestedGoals] = useState(null)
-
+ 
   const [state, dispatch] = useReducer(appReducer, initialState, () => {
     try {
       const goals = JSON.parse(localStorage.getItem('vm_goals'))
@@ -1898,7 +1898,7 @@ export default function App() {
       return { goals, log, journal, waterGlasses, dayNote, recipes }
     } catch (_e) { return initialState }
   })
-
+ 
   useEffect(() => { if (lang) localStorage.setItem('vm_lang', lang) }, [lang])
   useEffect(() => { if (authEmail) localStorage.setItem('vm_auth', authEmail) }, [authEmail])
   useEffect(() => { if (user) localStorage.setItem('vm_user', user) }, [user])
@@ -1909,7 +1909,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('vm_water_' + todayKey(), state.waterGlasses) }, [state.waterGlasses])
   useEffect(() => { localStorage.setItem('vm_note_' + todayKey(), state.dayNote) }, [state.dayNote])
   useEffect(() => { localStorage.setItem('vm_recipes', JSON.stringify(state.recipes)) }, [state.recipes])
-
+ 
   // Flow gates
   if (!lang) return <LanguagePicker onSelect={setLang} />
   if (!authEmail) return <AuthScreen lang={lang} onAuth={email => { setAuthEmail(email); localStorage.setItem('vm_auth', email) }} />
@@ -1927,14 +1927,14 @@ export default function App() {
       }}
       onBack={() => setSetupStep('body')} />
   }
-
+ 
   return (
     <AppContext.Provider value={{ state, dispatch, lang, user, goals: state.goals }}>
       <AppInner />
     </AppContext.Provider>
   )
 }
-
+ 
 // --- STYLES ------------------------------------------------------------------
 const S = {
   setupWrap: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px', fontFamily: 'system-ui, sans-serif', background: '#fafafa' },
@@ -1951,5 +1951,4 @@ const S = {
   modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 100 },
   modalCard: { width: '100%', maxWidth: 420, background: '#fff', borderRadius: 20, padding: '28px 24px', maxHeight: '90vh', overflowY: 'auto' },
   qtyBtn: { width: 36, height: 36, borderRadius: 10, border: '0.5px solid #ddd', background: '#f9f9f9', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  iconBtn: { fontSize: 12, color: '#aaa', background: 'none', border: '0.5px solid #ddd', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' },
-}
+  iconBtn: { fontSize: 12, color: '#aaa', background: 'none', border: '0.5px solid #ddd', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }
