@@ -1,3 +1,6 @@
+
+Copy
+
 import { useState, useEffect, useReducer, useMemo, useCallback, createContext, useContext, useRef } from 'react'
  
 // --- LANGUAGE DATA ------------------------------------------------------------
@@ -422,72 +425,54 @@ const searchUSDA = async (query, signal) => {
 function AuthScreen({ lang, onAuth }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
   const [isSignUp, setIsSignUp] = useState(true)
-  const [email, setEmail] = useState('')
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [error, setError] = useState('')
+  const [confirm, setConfirm]   = useState('')
+  const [error, setError]       = useState('')
   const [showPass, setShowPass] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading]   = useState(false)
  
   const validate = () => {
-    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-    if (!emailOk) return t.invalidEmail
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return t.invalidEmail
     if (password.length < 6) return t.weakPassword
     if (isSignUp && password !== confirm) return t.passwordMismatch
     return null
   }
  
-  // Cross-device auth using jsonblob.com (free, no API key, persistent blobs).
-  // Each user gets their own blob keyed by a deterministic ID derived from their email.
-  // Password is SHA-256 hashed before storage — never stored in plaintext.
- 
-  const hashStr = async (str) => {
+  // SHA-256 hash — passwords never stored in plaintext
+  const sha256 = async (str) => {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
   }
  
-  // Blob ID = first 16 chars of SHA-256(email + app_id) — deterministic, same on every device
-  const getBlobId = async (emailKey) => {
-    const h = await hashStr(emailKey.toLowerCase() + '_vegmacro_app_v1')
-    return h.slice(0, 16)
+  // We use a simple, reliable approach:
+  // 1. Hash the password with the email as salt
+  // 2. Store in localStorage (same device works immediately)
+  // 3. Also sync to a free cloud KV so other devices can sign in
+  //
+  // Cloud: we use https://api.keyvalue.xyz (no auth needed, key-value store)
+  // Key = sha256(email) so it's private and deterministic across devices
+  const CLOUD = 'https://api.keyvalue.xyz'
+ 
+  const cloudKey = async (emailKey) => {
+    const h = await sha256(emailKey + '_vegmacro_v2')
+    return h.slice(0, 32)
   }
  
-  const BLOB_BASE = 'https://jsonblob.com/api/jsonBlob'
- 
-  const loadAccount = async (blobId) => {
+  const cloudGet = async (key) => {
     try {
-      const res = await fetch(`${BLOB_BASE}/${blobId}`, { headers: { 'Accept': 'application/json' } })
-      if (res.ok) return await res.json()
+      const res = await fetch(CLOUD + '/' + key, { signal: AbortSignal.timeout(4000) })
+      if (res.ok) { const t = await res.text(); return t.trim() || null }
     } catch (_e) {}
     return null
   }
  
-  const saveAccount = async (blobId, data) => {
-    // Try PUT (update existing)
+  const cloudSet = async (key, value) => {
     try {
-      const res = await fetch(`${BLOB_BASE}/${blobId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify(data)
+      await fetch(CLOUD + '/post/' + key + '/' + encodeURIComponent(value), {
+        method: 'POST', signal: AbortSignal.timeout(4000)
       })
-      if (res.ok) return true
     } catch (_e) {}
-    // Try POST (create new) — jsonblob ignores our chosen ID on POST so we store the real ID
-    try {
-      const res = await fetch(BLOB_BASE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify(data)
-      })
-      if (res.ok) {
-        // Location header has the real blob URL
-        const loc = res.headers.get('Location') || ''
-        const realId = loc.split('/').pop()
-        if (realId) localStorage.setItem('vm_blob_' + blobId, realId)
-        return true
-      }
-    } catch (_e) {}
-    return false
   }
  
   const handleSubmit = async () => {
@@ -496,73 +481,58 @@ function AuthScreen({ lang, onAuth }) {
     setLoading(true)
     setError('')
  
-    try {
-      const emailKey   = email.toLowerCase().trim()
-      const pwHash     = await hashStr(password + emailKey + 'vegmacro_salt')
-      const blobId     = await getBlobId(emailKey)
-      // Check for remapped real blob ID (from POST response)
-      const realBlobId = localStorage.getItem('vm_blob_' + blobId) || blobId
+    const emailKey = email.toLowerCase().trim()
+    // Hash = sha256(password + email + salt) — unique per user, can't be reversed
+    const pwHash   = await sha256(password + emailKey + 'vegmacro_2024')
+    const key      = await cloudKey(emailKey)
  
-      if (isSignUp) {
-        // Check if account already exists in cloud
-        const existing = await loadAccount(realBlobId)
-        if (existing && existing.pwHash) {
-          setError('Account already exists. Please sign in.')
-          setLoading(false)
-          return
-        }
-        const record = { pwHash, email: emailKey, createdAt: new Date().toISOString() }
-        await saveAccount(realBlobId, record)
-        // Also cache locally for offline use
-        const local = JSON.parse(localStorage.getItem('vm_accounts') || '{}')
-        local[emailKey] = pwHash
-        localStorage.setItem('vm_accounts', JSON.stringify(local))
-        onAuth(emailKey)
-      } else {
-        // Sign in — try cloud first, then local cache
-        let storedHash = null
-        const cloudRecord = await loadAccount(realBlobId)
-        if (cloudRecord && cloudRecord.pwHash) {
-          storedHash = cloudRecord.pwHash
-        } else {
-          const local = JSON.parse(localStorage.getItem('vm_accounts') || '{}')
-          storedHash = local[emailKey] || null
-        }
-        if (!storedHash || storedHash !== pwHash) {
-          setError(t.authError)
-          setLoading(false)
-          return
-        }
-        // Cache for offline
-        const local = JSON.parse(localStorage.getItem('vm_accounts') || '{}')
-        local[emailKey] = storedHash
-        localStorage.setItem('vm_accounts', JSON.stringify(local))
-        onAuth(emailKey)
+    // Always check/save local cache first
+    const local = JSON.parse(localStorage.getItem('vm_accounts') || '{}')
+ 
+    if (isSignUp) {
+      // Check local first
+      if (local[emailKey]) {
+        setError('Account already exists. Please sign in.')
+        setLoading(false)
+        return
       }
-    } catch (_e) {
-      // Full offline fallback
-      try {
-        const emailKey = email.toLowerCase().trim()
-        const pwHash   = await hashStr(password + emailKey + 'vegmacro_salt')
-        const local    = JSON.parse(localStorage.getItem('vm_accounts') || '{}')
-        if (isSignUp) {
-          if (local[emailKey]) { setError('Account already exists.'); setLoading(false); return }
-          local[emailKey] = pwHash
+      // Check cloud
+      const cloudHash = await cloudGet(key)
+      if (cloudHash && cloudHash !== 'undefined') {
+        setError('Account already exists. Please sign in.')
+        setLoading(false)
+        return
+      }
+      // Create account
+      local[emailKey] = pwHash
+      localStorage.setItem('vm_accounts', JSON.stringify(local))
+      cloudSet(key, pwHash)  // async, don't await — best effort
+      setLoading(false)
+      onAuth(emailKey)
+    } else {
+      // Sign in — try local first (fast), then cloud
+      let storedHash = local[emailKey] || null
+      if (!storedHash) {
+        storedHash = await cloudGet(key)
+        if (storedHash) {
+          // Cache it locally for future
+          local[emailKey] = storedHash
           localStorage.setItem('vm_accounts', JSON.stringify(local))
-          onAuth(emailKey)
-        } else {
-          if (local[emailKey] !== pwHash) { setError(t.authError); setLoading(false); return }
-          onAuth(emailKey)
         }
-      } catch (_e) { setError('Something went wrong. Please try again.') }
+      }
+      if (!storedHash || storedHash !== pwHash) {
+        setError(t.authError)
+        setLoading(false)
+        return
+      }
+      setLoading(false)
+      onAuth(emailKey)
     }
-    setLoading(false)
   }
  
   return (
     <div style={S.setupWrap}>
       <div style={{ ...S.setupCard, maxWidth: 400 }}>
-        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontSize: 44, marginBottom: 8 }}>🥗</div>
           <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>VegMacro</h1>
@@ -572,7 +542,11 @@ function AuthScreen({ lang, onAuth }) {
         <div style={{ display: 'flex', background: '#f5f5f5', borderRadius: 10, padding: 3, marginBottom: 24 }}>
           {[{ label: t.createAccount, val: true }, { label: t.signIn, val: false }].map(opt => (
             <button key={String(opt.val)} onClick={() => { setIsSignUp(opt.val); setError('') }}
-              style={{ flex: 1, padding: '9px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', background: isSignUp === opt.val ? '#fff' : 'transparent', color: isSignUp === opt.val ? '#1D9E75' : '#888', boxShadow: isSignUp === opt.val ? '0 1px 4px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.15s' }}>
+              style={{ flex: 1, padding: '9px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500,
+                cursor: 'pointer',
+                background: isSignUp === opt.val ? '#fff' : 'transparent',
+                color: isSignUp === opt.val ? '#1D9E75' : '#888',
+                boxShadow: isSignUp === opt.val ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
               {opt.label}
             </button>
           ))}
@@ -588,11 +562,12 @@ function AuthScreen({ lang, onAuth }) {
           <label style={S.label}>{t.password}</label>
           <div style={{ position: 'relative' }}>
             <input style={{ ...S.input, paddingRight: 44 }} type={showPass ? 'text' : 'password'}
-              placeholder="••••••••" value={password}
+              placeholder="min. 6 characters" value={password}
               onChange={e => { setPassword(e.target.value); setError('') }}
-              onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
+              onKeyDown={e => e.key === 'Enter' && !isSignUp && handleSubmit()} />
             <button onClick={() => setShowPass(v => !v)}
-              style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#aaa' }}>
+              style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#aaa' }}>
               {showPass ? '🙈' : '👁️'}
             </button>
           </div>
@@ -601,22 +576,30 @@ function AuthScreen({ lang, onAuth }) {
         {isSignUp && (
           <div style={S.field}>
             <label style={S.label}>{t.confirmPassword}</label>
-            <input style={S.input} type="password" placeholder="••••••••" value={confirm}
+            <input style={S.input} type="password" placeholder="repeat password" value={confirm}
               onChange={e => { setConfirm(e.target.value); setError('') }}
               onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
           </div>
         )}
  
-        {error && <div style={{ background: '#FFF0F0', border: '0.5px solid #F7C1C1', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#A32D2D' }}>{error}</div>}
+        {error && (
+          <div style={{ background: '#FFF0F0', border: '0.5px solid #F7C1C1', borderRadius: 8,
+            padding: '8px 12px', marginBottom: 12, fontSize: 13, color: '#A32D2D' }}>
+            {error}
+          </div>
+        )}
  
-        <button onClick={handleSubmit} disabled={loading} style={{ ...S.btnActive, width: '100%', padding: '13px', fontSize: 15, borderRadius: 12, opacity: loading ? 0.7 : 1 }}>
+        <button onClick={handleSubmit} disabled={loading}
+          style={{ ...S.btnActive, width: '100%', padding: '13px', fontSize: 15, borderRadius: 12,
+            opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
           {loading ? 'Please wait...' : (isSignUp ? t.createAccount : t.signIn) + ' →'}
         </button>
  
-        <p style={{ textAlign: 'center', fontSize: 12, color: '#888', marginTop: 16 }}>
-          {isSignUp ? t.alreadyHaveAccount : t.noAccount}
+        <p style={{ textAlign: 'center', fontSize: 12, color: '#888', marginTop: 16, lineHeight: 1.6 }}>
+          {isSignUp ? 'Already have an account?' : "Don't have an account?"}
           <button onClick={() => { setIsSignUp(v => !v); setError('') }}
-            style={{ background: 'none', border: 'none', color: '#1D9E75', cursor: 'pointer', fontSize: 12, fontWeight: 500, marginLeft: 4 }}>
+            style={{ background: 'none', border: 'none', color: '#1D9E75', cursor: 'pointer',
+              fontSize: 12, fontWeight: 600, marginLeft: 4 }}>
             {isSignUp ? t.signIn : t.createAccount}
           </button>
         </p>
@@ -625,7 +608,6 @@ function AuthScreen({ lang, onAuth }) {
   )
 }
  
-// --- LANGUAGE PICKER ----------------------------------------------------------
 function LanguagePicker({ onSelect }) {
   return (
     <div style={S.setupWrap}>
@@ -1018,274 +1000,242 @@ function AddFoodModal({ food, onConfirm, onCancel, lang }) {
 // Nutrition from Open Food Facts — reads per-serving fields with per-100g fallback.
 function BarcodeScanner({ lang, onFound, onClose }) {
   const t = LANGUAGES[lang] || LANGUAGES.en
-  const videoRef    = useRef(null)
-  const readerRef   = useRef(null)
-  const streamRef   = useRef(null)
-  const [status, setStatus]           = useState('loading')  // loading|scanning|lookingup|notfound|error|manual
+  const videoRef  = useRef(null)
+  const readerRef = useRef(null)
+  const [status, setStatus]           = useState('loading')
   const [manualBarcode, setManualBarcode] = useState('')
   const [zxingReady, setZxingReady]   = useState(false)
  
-  // -- Load ZXing from CDN --------------------------------------------------
+  // Load ZXing from CDN
   useEffect(() => {
     if (window.ZXing) { setZxingReady(true); return }
-    const script = document.createElement('script')
-    script.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js'
-    script.onload  = () => setZxingReady(true)
-    script.onerror = () => setStatus('manual')
-    document.head.appendChild(script)
-    return () => { try { document.head.removeChild(script) } catch (_e) {} }
+    const s = document.createElement('script')
+    s.src = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.4/umd/index.min.js'
+    s.onload  = () => setZxingReady(true)
+    s.onerror = () => setStatus('manual')
+    document.head.appendChild(s)
   }, [])
  
-  // -- Start scanner once ZXing is ready -----------------------------------
+  // Start scanner
   useEffect(() => {
-    if (!zxingReady || !videoRef.current) return
-    let cancelled = false
+    if (!zxingReady) return
+    let active = true
  
-    const start = async () => {
+    const startScan = async () => {
       try {
+        const ZXingBrowser = window.ZXingBrowser || window.ZXing
         const hints = new Map()
-        const formats = [
-          window.ZXing.BarcodeFormat.EAN_13,
-          window.ZXing.BarcodeFormat.EAN_8,
-          window.ZXing.BarcodeFormat.UPC_A,
-          window.ZXing.BarcodeFormat.UPC_E,
-          window.ZXing.BarcodeFormat.CODE_128,
-        ]
-        hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, formats)
-        hints.set(window.ZXing.DecodeHintType.TRY_HARDER, true)
+        if (ZXingBrowser.DecodeHintType) {
+          hints.set(ZXingBrowser.DecodeHintType.TRY_HARDER, true)
+        }
  
-        const reader = new window.ZXing.BrowserMultiFormatReader(hints, 500)
+        let reader
+        // Try @zxing/browser API first (newer)
+        if (ZXingBrowser.BrowserMultiFormatReader) {
+          reader = new ZXingBrowser.BrowserMultiFormatReader(hints)
+        } else if (window.ZXing && window.ZXing.BrowserMultiFormatReader) {
+          reader = new window.ZXing.BrowserMultiFormatReader(hints, 300)
+        } else {
+          setStatus('manual')
+          return
+        }
         readerRef.current = reader
  
-        // Get camera stream
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
-        })
-        if (cancelled) { mediaStream.getTracks().forEach(tr => tr.stop()); return }
-        streamRef.current = mediaStream
-        videoRef.current.srcObject = mediaStream
-        await videoRef.current.play()
+        const devices = await ZXingBrowser.BrowserMultiFormatReader.listVideoInputDevices
+          ? ZXingBrowser.BrowserMultiFormatReader.listVideoInputDevices()
+          : navigator.mediaDevices.enumerateDevices().then(d => d.filter(d => d.kind === 'videoinput'))
+ 
+        const allDevices = await devices
+        // Prefer back camera
+        const backCam = allDevices.find(d =>
+          d.label.toLowerCase().includes('back') ||
+          d.label.toLowerCase().includes('rear') ||
+          d.label.toLowerCase().includes('environment')
+        )
+        const deviceId = backCam ? backCam.deviceId : (allDevices[0] && allDevices[0].deviceId)
+ 
+        if (!active) return
         setStatus('scanning')
  
-        reader.decodeFromStream(mediaStream, videoRef.current, (result, err) => {
-          if (cancelled) return
-          if (result) {
-            cancelled = true
+        if (reader.decodeFromVideoDevice) {
+          await reader.decodeFromVideoDevice(deviceId || undefined, videoRef.current, (result, err) => {
+            if (!active || !result) return
+            active = false
             reader.reset()
             lookupBarcode(result.getText())
-          }
-          // Ignore decode errors — they fire every frame until a code is found
-        })
-      } catch (e) {
-        if (!cancelled) setStatus('manual')
+          })
+        } else if (reader.decodeFromConstraints) {
+          await reader.decodeFromConstraints(
+            { video: { facingMode: 'environment' } },
+            videoRef.current,
+            (result, err) => {
+              if (!active || !result) return
+              active = false
+              reader.reset()
+              lookupBarcode(result.getText())
+            }
+          )
+        } else {
+          setStatus('manual')
+        }
+      } catch (_e) {
+        if (active) setStatus('manual')
       }
     }
  
-    start()
+    startScan()
     return () => {
-      cancelled = true
+      active = false
       if (readerRef.current) { try { readerRef.current.reset() } catch (_e) {} }
-      if (streamRef.current) streamRef.current.getTracks().forEach(tr => tr.stop())
     }
   }, [zxingReady])
  
-  // -- Open Food Facts lookup with proper field priority -------------------
   const lookupBarcode = async (barcode) => {
     setStatus('lookingup')
-    // Stop camera immediately so user knows scan worked
     if (readerRef.current) { try { readerRef.current.reset() } catch (_e) {} }
-    if (streamRef.current) streamRef.current.getTracks().forEach(tr => tr.stop())
  
     try {
-      // Use v2 API — more reliable field names
       const res = await fetch(
-        `https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,product_name_en,brands,serving_size,serving_quantity,nutriments`,
-        { headers: { 'User-Agent': 'VegMacro/1.0' } }
+        'https://world.openfoodfacts.org/api/v2/product/' + barcode +
+        '?fields=product_name,product_name_en,brands,serving_size,serving_quantity,nutriments'
       )
       const data = await res.json()
- 
-      if (data.status !== 1 || !data.product) {
-        // Try UPC lookup as fallback (some US products only in OFF-US)
-        const res2 = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`)
+      if (data.status === 1 && data.product) {
+        parseProduct(data.product)
+      } else {
+        // v0 fallback
+        const res2 = await fetch('https://world.openfoodfacts.org/api/v0/product/' + barcode + '.json')
         const data2 = await res2.json()
-        if (data2.status !== 1) { setStatus('notfound'); return }
-        parseAndReturn(data2.product)
-        return
+        if (data2.status === 1 && data2.product) parseProduct(data2.product)
+        else setStatus('notfound')
       }
-      parseAndReturn(data.product)
     } catch (_e) {
       setStatus('error')
     }
   }
  
-  const parseAndReturn = (p) => {
+  const parseProduct = (p) => {
     const n = p.nutriments || {}
  
-    // -- Serving size resolution --
-    // Priority: serving_quantity (numeric grams) > parse serving_size string > 100g default
-    let servingG = parseFloat(p.serving_quantity) || null
-    if (!servingG && p.serving_size) {
-      // Try to extract grams from strings like "1 cup (240g)", "28g", "1 oz (28 g)"
-      const mG  = p.serving_size.match(/(\d+\.?\d*)\s*g\b/i)
-      const mOz = p.serving_size.match(/(\d+\.?\d*)\s*oz\b/i)
-      if (mG)  servingG = parseFloat(mG[1])
-      else if (mOz) servingG = Math.round(parseFloat(mOz[1]) * 28.3495)
+    // Resolve serving size in grams
+    let g = parseFloat(p.serving_quantity) || 0
+    if (!g && p.serving_size) {
+      const mg = p.serving_size.match(/([0-9]+\.?[0-9]*)\s*g/i)
+      const moz = p.serving_size.match(/([0-9]+\.?[0-9]*)\s*oz/i)
+      if (mg) g = parseFloat(mg[1])
+      else if (moz) g = parseFloat(moz[1]) * 28.35
     }
-    // Clamp to reasonable range — bad OFF data sometimes has serving_quantity = 0 or 10000
-    if (servingG && (servingG < 1 || servingG > 2000)) servingG = null
+    if (g < 1 || g > 1500) g = 0  // reject bad values, fall back to per-100g
  
-    // -- Per-serving nutrient helper --
-    // OFF field naming is inconsistent: tries _serving suffix first, then computes from _100g
-    const getNutrient = (key100, keyServing) => {
-      // Direct per-serving value
-      const sv = n[keyServing]
-      if (servingG && sv != null && sv >= 0) return Math.round(sv * 10) / 10
-      // Compute from per-100g
-      const v100 = n[key100]
-      if (v100 != null && v100 >= 0) {
-        if (servingG) return Math.round((v100 * servingG / 100) * 10) / 10
-        return Math.round(v100 * 10) / 10  // return per-100g as fallback
-      }
+    // Get nutrient value: prefer _serving field, else compute from _100g * g/100
+    const get = (k100, ks) => {
+      const s = n[ks]
+      if (g && s != null && s >= 0) return Math.round(s * 10) / 10
+      const v = n[k100]
+      if (v != null && v >= 0) return Math.round((g ? v * g / 100 : v) * 10) / 10
       return 0
     }
  
-    const protein = getNutrient('proteins_100g',      'proteins_serving')
-    const carbs   = getNutrient('carbohydrates_100g', 'carbohydrates_serving')
-    const fat     = getNutrient('fat_100g',           'fat_serving')
-    const fiber   = getNutrient('fiber_100g',         'fiber_serving')
+    const protein  = get('proteins_100g',      'proteins_serving')
+    const carbs    = get('carbohydrates_100g', 'carbohydrates_serving')
+    const fat      = get('fat_100g',           'fat_serving')
+    const fiber    = get('fiber_100g',         'fiber_serving')
  
-    // -- Calorie calculation --
-    // Try direct kcal fields first, then recompute from macros as sanity check
-    let calories = 0
-    if (servingG) {
-      calories = getNutrient('energy-kcal_100g', 'energy-kcal_serving')
-      // OFF sometimes stores kJ instead of kcal — convert if value is suspiciously high
-      if (calories === 0) {
-        const kj = getNutrient('energy_100g', 'energy_serving')
-        if (kj > 0) calories = Math.round(kj / 4.184)
-      }
-    } else {
-      calories = Math.round(n['energy-kcal_100g'] || n['energy-kcal'] || 0)
-      if (calories === 0) {
-        const kj = n['energy_100g'] || n['energy'] || 0
-        if (kj > 0) calories = Math.round(kj / 4.184)
-      }
+    // Calories: try kcal field, then kJ conversion, then compute from macros
+    let cal = get('energy-kcal_100g', 'energy-kcal_serving')
+    if (!cal) {
+      const kj = get('energy_100g', 'energy_serving')
+      if (kj) cal = Math.round(kj / 4.184)
     }
+    // Sanity check against macros (Atwater: P*4 + C*4 + F*9)
+    const macroCal = Math.round(protein * 4 + carbs * 4 + fat * 9)
+    if (!cal && macroCal) cal = macroCal
+    else if (cal && macroCal && Math.abs(cal - macroCal) / cal > 0.5) cal = macroCal
  
-    // Sanity check: recompute calories from macros (Atwater: P*4 + C*4 + F*9)
-    const macroCalories = Math.round(protein * 4 + carbs * 4 + fat * 9)
-    // If OFF calories are zero or wildly off (>40% discrepancy), use macro-computed value
-    if (calories === 0 && macroCalories > 0) {
-      calories = macroCalories
-    } else if (macroCalories > 0 && Math.abs(calories - macroCalories) / Math.max(calories, 1) > 0.4) {
-      // Trust macros over the reported value when they diverge significantly
-      calories = macroCalories
-    }
- 
-    const portionLabel = servingG ? \`1 serving (\${servingG}g)\` : '100g'
     const brand = p.brands ? p.brands.split(',')[0].trim() : ''
-    const displayName = [brand, p.product_name || p.product_name_en].filter(Boolean).join(' - ') || 'Unknown Product'
+    const name  = [brand, p.product_name || p.product_name_en].filter(Boolean).join(' ')
+      .replace(/\s+/g, ' ').trim() || 'Scanned Product'
  
-    const food = {
-      name: displayName,
-      portion: portionLabel,
-      calories,
+    onFound({
+      name,
+      portion: g ? '1 serving (' + g + 'g)' : '100g',
+      calories: cal,
       protein,
       carbs,
       fat,
       fiber,
       gi: 'Unknown',
-      source: 'BARCODE',
-    }
-    onFound(food)
-  }
- 
-  const handleManualLookup = () => {
-    if (manualBarcode.trim()) lookupBarcode(manualBarcode.trim())
+      source: 'BARCODE'
+    })
   }
  
   const handleClose = () => {
     if (readerRef.current) { try { readerRef.current.reset() } catch (_e) {} }
-    if (streamRef.current) streamRef.current.getTracks().forEach(tr => tr.stop())
     onClose()
   }
  
   return (
     <div style={S.modalOverlay}>
       <div style={{ ...S.modalCard, padding: 0, overflow: 'hidden', maxWidth: 420 }}>
-        {/* Viewfinder */}
         <div style={{ position: 'relative', background: '#111', width: '100%', aspectRatio: '4/3' }}>
-          <video ref={videoRef} style={{ width: '100%', height: '100%', objectFit: 'cover', display: status === 'scanning' ? 'block' : 'none' }} playsInline muted />
+          <video ref={videoRef}
+            style={{ width: '100%', height: '100%', objectFit: 'cover',
+              display: status === 'scanning' ? 'block' : 'none' }}
+            playsInline muted autoPlay />
  
-          {/* Scanning overlay frame */}
           {status === 'scanning' && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-              <div style={{ width: '78%', height: '38%', border: '2.5px solid #1D9E75', borderRadius: 10, boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)', position: 'relative' }}>
-                {/* Corner markers */}
-                {['topLeft','topRight','bottomLeft','bottomRight'].map(corner => (
-                  <div key={corner} style={{
-                    position: 'absolute',
-                    width: 20, height: 20,
-                    borderColor: '#1D9E75', borderStyle: 'solid',
-                    borderWidth: corner.includes('top') ? '3px 0 0' : '0 0 3px',
-                    ...(corner.includes('Left') ? { left: -2, borderLeftWidth: 3, borderRightWidth: 0 } : { right: -2, borderRightWidth: 3, borderLeftWidth: 0 }),
-                    ...(corner.includes('top') ? { top: -2 } : { bottom: -2 }),
-                  }} />
-                ))}
-                {/* Animated scan line */}
-                <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: '#1D9E75', animation: 'scanline 1.5s ease-in-out infinite', top: '50%' }} />
-              </div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex',
+              alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+              <div style={{ width: '78%', height: '38%', border: '2.5px solid #1D9E75',
+                borderRadius: 10, boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)' }} />
             </div>
           )}
  
-          {/* Non-scanning placeholder */}
           {status !== 'scanning' && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#666' }}>
-              {status === 'loading'    && <><div style={{ fontSize: 36 }}>⏳</div><div style={{ marginTop: 8, fontSize: 14 }}>Loading scanner...</div></>}
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', color: '#999' }}>
+              {status === 'loading'    && <><div style={{ fontSize: 36 }}>⏳</div><div style={{ marginTop: 8, fontSize: 14 }}>Starting camera...</div></>}
               {status === 'lookingup' && <><div style={{ fontSize: 36 }}>🔍</div><div style={{ marginTop: 8, fontSize: 14, color: '#fff' }}>Looking up product...</div></>}
-              {status === 'notfound'  && <><div style={{ fontSize: 36 }}>❓</div><div style={{ marginTop: 8, fontSize: 14, color: '#EF9F27' }}>{t.barcodeNotFound}</div></>}
-              {status === 'error'     && <><div style={{ fontSize: 36 }}>⚠️</div><div style={{ marginTop: 8, fontSize: 14, color: '#E24B4A' }}>{t.barcodeError}</div></>}
-              {status === 'manual'    && <><div style={{ fontSize: 36 }}>⌨️</div><div style={{ marginTop: 8, fontSize: 13, color: '#aaa' }}>Camera unavailable — enter barcode</div></>}
+              {status === 'notfound'  && <><div style={{ fontSize: 36 }}>❓</div><div style={{ marginTop: 8, fontSize: 14, color: '#EF9F27' }}>Product not found</div></>}
+              {status === 'error'     && <><div style={{ fontSize: 36 }}>⚠️</div><div style={{ marginTop: 8, fontSize: 14, color: '#E24B4A' }}>Could not scan. Try manual entry.</div></>}
+              {status === 'manual'    && <><div style={{ fontSize: 36 }}>⌨️</div><div style={{ marginTop: 8, fontSize: 13, color: '#bbb', textAlign: 'center', padding: '0 20px' }}>Camera unavailable — enter the barcode number below</div></>}
             </div>
           )}
  
           <button onClick={handleClose}
-            style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.65)', border: 'none', color: '#fff', borderRadius: 20, padding: '5px 13px', fontSize: 13, cursor: 'pointer', zIndex: 2 }}>
-            ✕ {t.stopScan}
+            style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.65)',
+              border: 'none', color: '#fff', borderRadius: 20, padding: '5px 13px',
+              fontSize: 13, cursor: 'pointer', zIndex: 2 }}>
+            ✕ Close
           </button>
         </div>
  
-        {/* Scanline CSS animation */}
-        <style>{`@keyframes scanline { 0%,100% { top:10%; } 50% { top:85%; } }`}</style>
- 
-        <div style={{ padding: '14px 18px 18px' }}>
+        <div style={{ padding: '14px 18px 20px' }}>
           {status === 'scanning' && (
-            <p style={{ textAlign: 'center', color: '#1D9E75', fontSize: 13, margin: 0 }}>
-              📷 Point the barcode at the green box
+            <p style={{ textAlign: 'center', color: '#1D9E75', fontSize: 13, margin: '0 0 10px' }}>
+              Point the barcode at the green box
             </p>
           )}
- 
-          {/* Manual entry — always visible so user can type if scan fails */}
-          <div style={{ marginTop: 12 }}>
-            <p style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>Or enter barcode number manually:</p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input style={{ ...S.input, flex: 1 }} type="tel" inputMode="numeric"
-                placeholder="e.g. 014100044208"
-                value={manualBarcode}
-                onChange={e => setManualBarcode(e.target.value.replace(/\D/g, ''))}
-                onKeyDown={e => e.key === 'Enter' && handleManualLookup()} />
-              <button onClick={handleManualLookup}
-                style={{ ...S.btnActive, padding: '10px 14px', whiteSpace: 'nowrap', borderRadius: 10 }}>
-                Look up
-              </button>
-            </div>
+          <p style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>Enter barcode number:</p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input style={{ ...S.input, flex: 1 }} type="tel" inputMode="numeric"
+              placeholder="e.g. 014100044208"
+              value={manualBarcode}
+              onChange={e => setManualBarcode(e.target.value.replace(/[^0-9]/g, ''))}
+              onKeyDown={e => e.key === 'Enter' && manualBarcode && lookupBarcode(manualBarcode)} />
+            <button
+              onClick={() => manualBarcode && lookupBarcode(manualBarcode)}
+              style={{ ...S.btnActive, padding: '10px 16px', whiteSpace: 'nowrap',
+                borderRadius: 10, fontSize: 13 }}>
+              Look up
+            </button>
           </div>
         </div>
       </div>
     </div>
   )
 }
-// --- RECIPE BUILDER -----------------------------------------------------------
+ 
 function RecipeBuilder({ lang, onClose }) {
   const { state, dispatch } = useApp()
   const t = LANGUAGES[lang] || LANGUAGES.en
@@ -1921,59 +1871,116 @@ function AppInner() {
  
 // --- ROOT ---------------------------------------------------------------------
 export default function App() {
-  // Setup flow: lang → auth → name → body → goals → app
   const [lang, setLang] = useState(() => localStorage.getItem('vm_lang') || null)
   const [authEmail, setAuthEmail] = useState(() => localStorage.getItem('vm_auth') || null)
-  const [user, setUser] = useState(() => localStorage.getItem('vm_user') || null)
-  const [bodyData, setBodyData] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('vm_body')) } catch (_e) { return null }
-  })
-  const [setupStep, setSetupStep] = useState('name') // 'name' | 'body' | 'goals'
+  const [setupStep, setSetupStep] = useState('name')
   const [pendingSuggestedGoals, setPendingSuggestedGoals] = useState(null)
+  const [bodyData, setBodyData] = useState(null)
+ 
+  // All data is keyed by the logged-in email so switching accounts works correctly
+  const userKey = (key) => authEmail ? 'vm_' + authEmail + '_' + key : 'vm_' + key
  
   const [state, dispatch] = useReducer(appReducer, initialState, () => {
+    if (!authEmail) return initialState
     try {
-      const goals = JSON.parse(localStorage.getItem('vm_goals'))
-      const log = JSON.parse(localStorage.getItem('vm_log_' + todayKey())) || []
-      const journal = JSON.parse(localStorage.getItem('vm_journal')) || {}
-      const waterGlasses = parseInt(localStorage.getItem('vm_water_' + todayKey())) || 0
-      const dayNote = localStorage.getItem('vm_note_' + todayKey()) || ''
-      const recipes = JSON.parse(localStorage.getItem('vm_recipes')) || []
+      const k = (key) => 'vm_' + authEmail + '_' + key
+      const goals        = JSON.parse(localStorage.getItem(k('goals')))
+      const log          = JSON.parse(localStorage.getItem(k('log_') + todayKey())) || []
+      const journal      = JSON.parse(localStorage.getItem(k('journal'))) || {}
+      const waterGlasses = parseInt(localStorage.getItem(k('water_') + todayKey())) || 0
+      const dayNote      = localStorage.getItem(k('note_') + todayKey()) || ''
+      const recipes      = JSON.parse(localStorage.getItem(k('recipes'))) || []
       return { goals, log, journal, waterGlasses, dayNote, recipes }
     } catch (_e) { return initialState }
   })
  
+  const user = state.goals
+    ? (localStorage.getItem(authEmail ? 'vm_' + authEmail + '_name' : 'vm_name') || authEmail)
+    : null
+ 
+  // Persist all state under the user's email key
   useEffect(() => { if (lang) localStorage.setItem('vm_lang', lang) }, [lang])
   useEffect(() => { if (authEmail) localStorage.setItem('vm_auth', authEmail) }, [authEmail])
-  useEffect(() => { if (user) localStorage.setItem('vm_user', user) }, [user])
-  useEffect(() => { if (bodyData) localStorage.setItem('vm_body', JSON.stringify(bodyData)) }, [bodyData])
-  useEffect(() => { if (state.goals) localStorage.setItem('vm_goals', JSON.stringify(state.goals)) }, [state.goals])
-  useEffect(() => { localStorage.setItem('vm_log_' + todayKey(), JSON.stringify(state.log)) }, [state.log])
-  useEffect(() => { localStorage.setItem('vm_journal', JSON.stringify(state.journal)) }, [state.journal])
-  useEffect(() => { localStorage.setItem('vm_water_' + todayKey(), state.waterGlasses) }, [state.waterGlasses])
-  useEffect(() => { localStorage.setItem('vm_note_' + todayKey(), state.dayNote) }, [state.dayNote])
-  useEffect(() => { localStorage.setItem('vm_recipes', JSON.stringify(state.recipes)) }, [state.recipes])
+ 
+  useEffect(() => {
+    if (!authEmail) return
+    const k = (key) => 'vm_' + authEmail + '_' + key
+    if (state.goals) localStorage.setItem(k('goals'), JSON.stringify(state.goals))
+  }, [state.goals, authEmail])
+ 
+  useEffect(() => {
+    if (!authEmail) return
+    const k = (key) => 'vm_' + authEmail + '_' + key
+    localStorage.setItem(k('log_') + todayKey(), JSON.stringify(state.log))
+  }, [state.log, authEmail])
+ 
+  useEffect(() => {
+    if (!authEmail) return
+    const k = (key) => 'vm_' + authEmail + '_' + key
+    localStorage.setItem(k('journal'), JSON.stringify(state.journal))
+  }, [state.journal, authEmail])
+ 
+  useEffect(() => {
+    if (!authEmail) return
+    const k = (key) => 'vm_' + authEmail + '_' + key
+    localStorage.setItem(k('water_') + todayKey(), state.waterGlasses)
+    localStorage.setItem(k('note_') + todayKey(), state.dayNote)
+    localStorage.setItem(k('recipes'), JSON.stringify(state.recipes))
+  }, [state.waterGlasses, state.dayNote, state.recipes, authEmail])
+ 
+  const handleAuth = (email) => {
+    setAuthEmail(email)
+    localStorage.setItem('vm_auth', email)
+  }
+ 
+  const handleLogout = () => {
+    localStorage.removeItem('vm_auth')
+    setAuthEmail(null)
+    setSetupStep('name')
+  }
+ 
+  const handleNameComplete = (name) => {
+    if (authEmail) localStorage.setItem('vm_' + authEmail + '_name', name)
+    setSetupStep('body')
+  }
+ 
+  const handleGoalsComplete = (goals) => {
+    const numGoals = Object.fromEntries(Object.entries(goals).map(([k, v]) => [k, Number(v)]))
+    dispatch({ type: 'SET_GOALS', goals: numGoals })
+  }
  
   // Flow gates
   if (!lang) return <LanguagePicker onSelect={setLang} />
-  if (!authEmail) return <AuthScreen lang={lang} onAuth={email => { setAuthEmail(email); localStorage.setItem('vm_auth', email) }} />
-  if (!user || !state.goals) {
-    if (setupStep === 'name') return <NameStep lang={lang} onComplete={name => { setUser(name); setSetupStep('body') }} onBack={() => setLang(null)} />
-    if (setupStep === 'body') return <BodyProfileStep lang={lang}
-      onComplete={(bd, suggested) => { setBodyData(bd); setPendingSuggestedGoals(suggested); setSetupStep('goals') }}
-      onBack={() => setSetupStep('name')} />
-    if (setupStep === 'goals') return <GoalsReviewStep lang={lang}
-      suggestedGoals={pendingSuggestedGoals}
-      bodyData={bodyData}
-      onComplete={goals => {
-        const numGoals = Object.fromEntries(Object.entries(goals).map(([k, v]) => [k, Number(v)]))
-        dispatch({ type: 'SET_GOALS', goals: numGoals })
-      }}
-      onBack={() => setSetupStep('body')} />
+  if (!authEmail) return <AuthScreen lang={lang} onAuth={handleAuth} />
+ 
+  if (!state.goals) {
+    if (setupStep === 'name') return (
+      <NameStep lang={lang}
+        onComplete={handleNameComplete}
+        onBack={() => setAuthEmail(null)} />
+    )
+    if (setupStep === 'body') return (
+      <BodyProfileStep lang={lang}
+        onComplete={(bd, suggested) => {
+          setBodyData(bd)
+          setPendingSuggestedGoals(suggested)
+          setSetupStep('goals')
+        }}
+        onBack={() => setSetupStep('name')} />
+    )
+    if (setupStep === 'goals') return (
+      <GoalsReviewStep lang={lang}
+        suggestedGoals={pendingSuggestedGoals}
+        bodyData={bodyData}
+        onComplete={handleGoalsComplete}
+        onBack={() => setSetupStep('body')} />
+    )
   }
  
+  const displayName = localStorage.getItem('vm_' + authEmail + '_name') || authEmail.split('@')[0]
+ 
   return (
-    <AppContext.Provider value={{ state, dispatch, lang, user, goals: state.goals }}>
+    <AppContext.Provider value={{ state, dispatch, lang, user: displayName, goals: state.goals, onLogout: handleLogout }}>
       <AppInner />
     </AppContext.Provider>
   )
@@ -1996,3 +2003,4 @@ const S = {
   modalCard: { width: '100%', maxWidth: 420, background: '#fff', borderRadius: 20, padding: '28px 24px', maxHeight: '90vh', overflowY: 'auto' },
   qtyBtn: { width: 36, height: 36, borderRadius: 10, border: '0.5px solid #ddd', background: '#f9f9f9', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   iconBtn: { fontSize: 12, color: '#aaa', background: 'none', border: '0.5px solid #ddd', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }
+}
