@@ -1121,79 +1121,35 @@ function BarcodeScanner({ lang, onFound, onClose }) {
   const parseAndReturn = (p) => {
     const n = p.nutriments || {}
  
-    // -- Serving size resolution --
-    // Priority: serving_quantity (numeric grams) > parse serving_size string > 100g default
+    // Serving size in grams — prefer serving_quantity (numeric g), fall back to parsing serving_size string
     let servingG = parseFloat(p.serving_quantity) || null
     if (!servingG && p.serving_size) {
-      // Try to extract grams from strings like "1 cup (240g)", "28g", "1 oz (28 g)"
-      const mG  = p.serving_size.match(/(\d+\.?\d*)\s*g\b/i)
-      const mOz = p.serving_size.match(/(\d+\.?\d*)\s*oz\b/i)
-      if (mG)  servingG = parseFloat(mG[1])
-      else if (mOz) servingG = Math.round(parseFloat(mOz[1]) * 28.3495)
-    }
-    // Clamp to reasonable range — bad OFF data sometimes has serving_quantity = 0 or 10000
-    if (servingG && (servingG < 1 || servingG > 2000)) servingG = null
- 
-    // -- Per-serving nutrient helper --
-    // OFF field naming is inconsistent: tries _serving suffix first, then computes from _100g
-    const getNutrient = (key100, keyServing) => {
-      // Direct per-serving value
-      const sv = n[keyServing]
-      if (servingG && sv != null && sv >= 0) return Math.round(sv * 10) / 10
-      // Compute from per-100g
-      const v100 = n[key100]
-      if (v100 != null && v100 >= 0) {
-        if (servingG) return Math.round((v100 * servingG / 100) * 10) / 10
-        return Math.round(v100 * 10) / 10  // return per-100g as fallback
-      }
-      return 0
+      const m = p.serving_size.match(/(\d+\.?\d*)\s*g/i)
+      if (m) servingG = parseFloat(m[1])
     }
  
-    const protein = getNutrient('proteins_100g',      'proteins_serving')
-    const carbs   = getNutrient('carbohydrates_100g', 'carbohydrates_serving')
-    const fat     = getNutrient('fat_100g',           'fat_serving')
-    const fiber   = getNutrient('fiber_100g',         'fiber_serving')
- 
-    // -- Calorie calculation --
-    // Try direct kcal fields first, then recompute from macros as sanity check
-    let calories = 0
-    if (servingG) {
-      calories = getNutrient('energy-kcal_100g', 'energy-kcal_serving')
-      // OFF sometimes stores kJ instead of kcal — convert if value is suspiciously high
-      if (calories === 0) {
-        const kj = getNutrient('energy_100g', 'energy_serving')
-        if (kj > 0) calories = Math.round(kj / 4.184)
-      }
-    } else {
-      calories = Math.round(n['energy-kcal_100g'] || n['energy-kcal'] || 0)
-      if (calories === 0) {
-        const kj = n['energy_100g'] || n['energy'] || 0
-        if (kj > 0) calories = Math.round(kj / 4.184)
-      }
+    // Helper: get the per-serving value if serving size is known, else per-100g
+    // OFF stores both: `protein_serving` (per serving) and `proteins_100g` (per 100g)
+    const perServing = (key100, keyServing) => {
+      if (servingG && n[keyServing] != null) return Math.round(n[keyServing] * 10) / 10
+      // Compute from 100g value and serving size
+      if (servingG && n[key100] != null) return Math.round((n[key100] * servingG / 100) * 10) / 10
+      // No serving info — return per-100g
+      return Math.round((n[key100] || 0) * 10) / 10
     }
  
-    // Sanity check: recompute calories from macros (Atwater: P*4 + C*4 + F*9)
-    const macroCalories = Math.round(protein * 4 + carbs * 4 + fat * 9)
-    // If OFF calories are zero or wildly off (>40% discrepancy), use macro-computed value
-    if (calories === 0 && macroCalories > 0) {
-      calories = macroCalories
-    } else if (macroCalories > 0 && Math.abs(calories - macroCalories) / Math.max(calories, 1) > 0.4) {
-      // Trust macros over the reported value when they diverge significantly
-      calories = macroCalories
-    }
- 
-    const portionLabel = servingG ? \`1 serving (\${servingG}g)\` : '100g'
-    const brand = p.brands ? p.brands.split(',')[0].trim() : ''
-    const displayName = [brand, p.product_name || p.product_name_en].filter(Boolean).join(' - ') || 'Unknown Product'
+    const portionLabel = servingG ? `1 serving (${servingG}g)` : '100g'
  
     const food = {
-      name: displayName,
+      name: p.product_name || p.product_name_en || 'Unknown Product',
       portion: portionLabel,
-      calories,
-      protein,
-      carbs,
-      fat,
-      fiber,
+      calories: servingG
+        ? Math.round((n['energy-kcal_100g'] || n['energy-kcal'] || 0) * servingG / 100)
+        : Math.round(n['energy-kcal_serving'] || n['energy-kcal_100g'] || n['energy-kcal'] || 0),
+      protein: perServing('proteins_100g',      'proteins_serving'),
+      carbs:   perServing('carbohydrates_100g', 'carbohydrates_serving'),
+      fat:     perServing('fat_100g',           'fat_serving'),
+      fiber:   perServing('fiber_100g',         'fiber_serving'),
       gi: 'Unknown',
       source: 'BARCODE',
     }
